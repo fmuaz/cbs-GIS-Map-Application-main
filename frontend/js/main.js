@@ -22,6 +22,9 @@ window.addEventListener('DOMContentLoaded', () => {
     LoadingManager.init(map);
     LayerFilter.init(); // Katman filtreleme modülü
     BufferTool.init(map);
+    if (window.MiniMapManager) {
+        window.MiniMapManager.init(map);
+    }
 
     const zoomInBtn = document.getElementById('btn-zoom-in');
     const zoomOutBtn = document.getElementById('btn-zoom-out');

@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="leaflet.css" />
     <style>
         /* --- TEMEL ARAYÜZ --- */
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; position: relative; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; position: relative; width: 100vw; height: 100vh; }
         #map { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         
         /* --- SAĞ MENÜ (SIDEBAR) --- */
@@ -313,6 +313,41 @@
             0% { transform: scale(0.92); opacity: 0.8; }
             100% { transform: scale(1.08); opacity: 1; }
         }
+
+        /* --- AAA PREMIUM MINI-MAP (RADAR) --- */
+        #minimap-wrapper {
+            position: absolute;
+            bottom: 20px;
+            left: 20px; /* Sağ alta almak istersen right: 20px; yapabilirsin */
+            width: 180px;
+            height: 140px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* Dark Mode Uyumluluğu */
+        body.dark-mode #minimap-wrapper {
+            background: rgba(10, 15, 13, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        #minimap-ui {
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+        }
+
+        /* Mini-map üzerinde Leaflet logolarını ve butonları gizle */
+        #minimap-ui .leaflet-control-container {
+            display: none !important;
+        }
     </style>
 </head>
 
@@ -398,9 +433,7 @@
         </button>
     </div>
 
-    <!-- ========================================== -->
-    <!-- YENİ NESİL PREMIUM HUD (ZOOM + TOOLS) -->
-    <!-- ========================================== -->
+    <!-- YENİ NESİL HUD (ZOOM + TOOLS) -->
     <div class="hud-container">
         
         <!-- ZOOM KONTROLÜ -->
@@ -477,6 +510,11 @@
     <!-- CANVAS ÜZERİNDE GÖRÜNEN FEEDBACK -->
     <div id="context-feedback">Feedback Message</div>
 
+    <!-- MINI MAP (RADAR) CONTAINER -->
+    <div id="minimap-wrapper">
+        <div id="minimap-ui"></div>
+    </div>
+
     <!-- Harita alanı -->
     <div id="map"></div>
 
@@ -503,6 +541,7 @@
     <script src="js/layerFilter.js"></script>
     <script src="js/bufferTool.js"></script>
     <script src="js/main.js"></script>
+    <script src="js/miniMap.js"></script>
 
 </body>
 </html>
