@@ -41,10 +41,7 @@
             font-size: 11px; white-space: nowrap;
         }
 
-        /* ========================================================== */
-        /* --- YENİ NESİL PREMIUM HUD & TOOLBAR (GLASS EFFECT) --- */
-        /* ========================================================== */
-        
+        /* --- YENİ NESİL PREMIUM HUD & TOOLBAR (GLASS EFFECT) --- */        
         :root {
             /* LIGHT MODE TOKENS (Glass + Clean) */
             --tool-panel: rgba(255, 255, 255, 0.88);
@@ -520,6 +517,7 @@
 
     <!-- 1. Temel Harita Motoru (L nesnesini tarayıcıya bu verir) -->
     <script src="leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
     <script src="constant.js"></script>
     <script src="js/apiService.js"></script>
@@ -538,6 +536,7 @@
     <script src="js/pointTool.js"></script>
     <script src="js/historyManager.js"></script>
     <script src="js/sidebar.js"></script>
+    <script src="js/heatmapManager.js"></script>
     <script src="js/layerFilter.js"></script>
     <script src="js/bufferTool.js"></script>
     <script src="js/main.js"></script>

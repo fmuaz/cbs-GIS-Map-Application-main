@@ -1,5 +1,4 @@
 // Sağ panelin açılıp kapanmasını ve analiz kartlarını yöneten kısım
-
 const Sidebar = {
     sidebarEl: null,
     layerListEl: null,
@@ -22,7 +21,7 @@ const Sidebar = {
 
         // export etme yeri
         document.getElementById('exportMeasuresBtn').addEventListener('click', () => {
-            ExportService.exportMeasurementsToGeoJSON();
+            if(window.ExportService) ExportService.exportMeasurementsToGeoJSON();
         });
 
         // ARAMA KUTUSUNU (CANLI FİLTRE) DOĞRUDAN BURADA DİNLİYORUZ
@@ -30,7 +29,6 @@ const Sidebar = {
         if (searchInput) {
             ['input', 'keyup'].forEach(eventType => {
                 searchInput.addEventListener(eventType, (e) => {
-                    // Türkçe karakterleri (ö, ş, ç vb.) kusursuz küçültmek için toLocaleLowerCase('tr-TR') kullanıyoruz
                     const searchText = e.target.value.toLocaleLowerCase('tr-TR').trim();
                     this.renderList(searchText); // Listeyi anında yeniden çiz
                 });
@@ -57,7 +55,7 @@ const Sidebar = {
         // Katman eklendiğinde arama kutusunu sıfırla ve listeyi çizdir
         const searchInput = document.getElementById('layerSearchInput');
         if (searchInput) searchInput.value = '';
-        
+
         this.renderList();
     },
 
@@ -96,6 +94,10 @@ const Sidebar = {
                             📄 ${item.fileName}
                         </div>
                         <div style="display: flex; gap: 4px; align-items: center;">
+                            
+                            <!-- 🔥 ISI HARİTASI (HEATMAP) BUTONU BURAYA EKLENDİ 🔥 -->
+                            <button id="heat_${safeId}" title="Isı Haritası Modu" style="background: none; border: none; cursor: pointer; font-size: 16px; margin-right: 5px; transition: transform 0.2s;">🔥</button>
+
                             <button id="toggle_${safeId}" style="background: none; border: none; font-size: 15px; cursor: pointer; padding: 4px;" title="Toggle Visibility">
                                 ${item.isHidden ? '🙈' : '👁️'}
                             </button>
@@ -122,6 +124,26 @@ const Sidebar = {
             const deleteBtn = document.getElementById(`delete_${safeId}`);
             const titleEl = document.getElementById(`title_${safeId}`);
             const cardEl = document.getElementById(`card_${safeId}`);
+            
+            // 🔥 ISI HARİTASI OLAY DİNLEYİCİSİ 🔥
+            const heatBtn = document.getElementById(`heat_${safeId}`);
+
+            if (heatBtn) {
+                heatBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const targetLayer = MapManager.mapLayersStorage[item.fileName];
+                    if (targetLayer && window.HeatmapManager) {
+                        const isOn = window.HeatmapManager.toggleHeatmap(item.fileName, targetLayer);
+                        if (isOn) {
+                            heatBtn.style.transform = "scale(1.2)";
+                            heatBtn.style.filter = "drop-shadow(0 0 5px #ff4757)";
+                        } else {
+                            heatBtn.style.transform = "scale(1)";
+                            heatBtn.style.filter = "none";
+                        }
+                    }
+                });
+            }
 
             if (titleEl) {
                 titleEl.addEventListener('click', () => {
@@ -151,7 +173,6 @@ const Sidebar = {
                         item.onDeleteClick(item.fileName);
                         this.state = this.state.filter(s => s.fileName !== item.fileName);
                         
-                        // Silme sonrası arama kutusundaki mevcut metni alıp listeyi tekrar filtreleyerek çiz
                         const searchInput = document.getElementById('layerSearchInput');
                         const currentSearchText = searchInput ? searchInput.value.toLocaleLowerCase('tr-TR').trim() : '';
                         this.renderList(currentSearchText);
