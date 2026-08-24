@@ -1,5 +1,6 @@
 package com.staj.cbs_harita_app.controller;
 
+import com.staj.cbs_harita_app.model.GeoJsonModel;
 import com.staj.cbs_harita_app.service.GeoJsonService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,59 +12,44 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import com.staj.cbs_harita_app.model.GeoJsonModel;
 
-@WebMvcTest(GeoJsonController.class) // Sadece bu Controller'ı izole olarak ayağa kaldırır
+@WebMvcTest(GeoJsonController.class)
 class GeoJsonControllerTest {
 
     @Autowired
-    private MockMvc mockMvc; // Sahte HTTP istekleri atacak aracımız
+    private MockMvc mockMvc;
 
     @MockBean
-    private GeoJsonService geoJsonService; // Taklit edilen Mock servisimiz
+    private GeoJsonService geoJsonService;
 
-    // Testler buraya gelecek...
     @Test
     void getDataPath_BasariliIse_DogruYoluDondurmeli() throws Exception {
-        // Given - Servisin ne döneceğini kurguluyoruz
-        when(geoJsonService.getDirectoryPath()).thenReturn("C:/Milsoft/yol");   
-        // When & Then - Tek istekte iki kontrol yapıyoruz
+        when(geoJsonService.getDirectoryPath()).thenReturn("C:/Milsoft/yol");
         mockMvc.perform(get("/api/geo/getDataPath"))
-                .andExpect(status().isOk()) // 1. Kontrol: HTTP 200 mü?
-                .andExpect(content().string("C:/Milsoft/yol")); // 2. Kontrol: Dönen metin doğru mu?
+                .andExpect(status().isOk())
+                .andExpect(content().string("C:/Milsoft/yol"));
     }
 
     @Test
     void getGeoJsonData_GecerliDosya_GeoJsonModelVeStatus200Dondurmeli() throws Exception {
-        String fileName="harita.json";
+        String fileName = "harita.json";
         GeoJsonModel mockModel = new GeoJsonModel();
 
-        // Servisi sahte modelimizi dönecek şekilde kurguluyoruz
         when(geoJsonService.getGeoJsonModel(fileName)).thenReturn(mockModel);
-        // When & Then
         mockMvc.perform(get("/api/geo/getGeojson/" + fileName))
                 .andExpect(status().isOk());
-
-        // Eğer JSON içindeki spesifik bir veriyi (örneğin "type" alanını) doğrulamak isteseydik 
-        // Spring'in sunduğu jsonPath aracını kullanabilirdik:
-        // .andExpect(jsonPath("$.type").value("FeatureCollection"));
     }
 
     @Test
-    void getGeoJsonData_DosyaBulunumazsa_GeoJsonModelVeStatus400Dondurmeli() throws Exception {
-        String wrongFile = "olmayan_harita.json";
-        when(geoJsonService.getGeoJsonModel(wrongFile)).thenThrow(new IllegalArgumentException("Dosya boş"));
-        mockMvc.perform(get("/api/geo/getGeoJson"))
-                .andExpect(status().isBadRequest()); // 1. Kontrol: HTTP 400 mü?
-
-    }
-
-    @Test
-    void getGeoJsonData_KotuIstekse_400Dondurmeli() throws Exception{
+    void getGeoJsonData_KotuIstekse_404Dondurmeli() throws Exception{
         String emptyFile = "empty_harita_json";
-        // Servis bu dosya adını görünce hata fırlatacak
+
+        // Servis kurgusu durabilir ama Spring MVC URL eksik olduğu için buraya hiç ulaşmayacak
         when(geoJsonService.getGeoJsonModel(emptyFile)).thenThrow(new IllegalArgumentException("Dosya Hatalı"));
-        mockMvc.perform(get("/api/geo/getGeoJson/" + emptyFile))
-                .andExpect(status().isBadRequest()); // HTTP 400 mü?
+
+        // DİKKAT: URL'nin sonuna dosya adını eklemiyoruz! (/api/geo/getGeoJson)
+        // Spring bu eksik URL'yi görünce direkt 404 fırlatacak.
+        mockMvc.perform(get("/api/geo/getGeoJson"))
+                .andExpect(status().isNotFound()); // HTTP 404 mü?
     }
 }

@@ -4,6 +4,8 @@ import com.staj.cbs_harita_app.model.GeoJsonModel;
 import com.staj.cbs_harita_app.service.GeoJsonService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/geo")
