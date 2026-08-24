@@ -25,11 +25,43 @@ public class GeoJsonController {
 
     }
 
-
     @GetMapping("/getDataPath")
     public ResponseEntity<String> getDataPath() {
         // Service içindeki directoryPath değişkenine erişmek için doğrudan oradan çekiyoruz
-        // (Eğer directoryPath service içinde private ise public bir getter yazabilir veya direkt buraya @Value ile de enjekte edebilirsin)
+        // Eğer directoryPath service içinde private ise public bir getter yazabilir veya direkt buraya @Value ile de enjekte edebiliriz
         return ResponseEntity.ok(geoJsonService.getDirectoryPath());
+    }
+
+    // 1. Dışarıdan dosya yükleme (Import)
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
+        try {
+            geoJsonService.saveFile(file);
+            return ResponseEntity.ok("Dosya başarıyla yüklendi: " + file.getOriginalFilename());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Yükleme hatası: " + e.getMessage());
+        }
+    }
+
+    // 2. Sunucudaki dosyaları listeleme (Sidebar için)
+    @GetMapping("/listLayers")
+    public ResponseEntity<List<String>> listLayers() {
+        try {
+            List<String> files = geoJsonService.getAllGeoJsonFiles();
+            return ResponseEntity.ok(files);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(null);
+        }
+    }
+
+    // 3. Çizilen ölçümleri kaydetme (Export/Save)
+    @PostMapping("/saveMeasurements")
+    public ResponseEntity<?> saveMeasurements(@RequestBody String geoJsonData) {
+        try {
+            geoJsonService.saveMeasurementData(geoJsonData);
+            return ResponseEntity.ok("Ölçümler başarıyla sunucuya kaydedildi.");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Kaydetme hatası: " + e.getMessage());
+        }
     }
 }

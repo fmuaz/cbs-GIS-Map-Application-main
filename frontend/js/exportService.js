@@ -1,9 +1,9 @@
 const ExportService = {
     // Haritadaki kalıcı tüm ölçüm gruplarını toplayacağımız küresel havuz
     globalMeasureFolder: null,
-    // dosya ismini önce 0 da başlatıp arttırarak gideceğim her indirmede
+    // Dosya ismini önce 0'dan başlatıp arttırarak gideceğimiz sayaç
     exportCounter : 0,
-    // dosya tarihini tutan değişken
+    // Dosya tarihini tutan değişken
     lastExportDate : null,
 
     /**
@@ -25,48 +25,43 @@ const ExportService = {
         }
     },
 
-    /**
-     * Havuzdaki tüm verileri toplayıp GeoJSON olarak bilgisayara indirir
-     */
+    // Havuzdaki tüm verileri toplayıp GeoJSON olarak sunucuya kaydeder
     exportMeasurementsToGeoJSON: function () {
         if (!this.globalMeasureFolder || this.globalMeasureFolder.getLayers().length === 0) {
-            alert("⚠️ Haritada dışarı aktarılacak aktif bir çizgi veya alan ölçümü bulunamadı!");
+            alert(window.APP_MESSAGES?.NO_MEASUREMENT_TO_EXPORT || "Dışa aktarılacak ölçüm bulunamadı!");
             return;
         }
 
-        // o günün tarihini alıyoruz
-        const timeStamp = new Date().toISOString().slice(0, 10);
+        // 1. Havuzdaki çizimleri GeoJSON formatına çevir
+        const geojsonData = this.globalMeasureFolder.toGeoJSON();
 
-        if (this.lastExportDate !== timeStamp) {
-            this.exportCounter = 1;       // Sayacı o gün için sıfırdan, yani 1'den başlat 🎯
-            this.lastExportDate = timeStamp; // Hafızadaki tarihi bugünün tarihiyle güncelle
-        } else {
-            // Eğer hala aynı gün içindeysek sayacı normal şekilde 1 arttır
-            this.exportCounter++;
-        }
+        // 2. Sayaç ve Tarih metadatalarını güncelle
+        this.exportCounter++;
+        this.lastExportDate = new Date().toISOString();
 
-        // Leaflet nesnelerini tek hamlede standart GeoJSON formatına çevirir
-        const rawGeoJson = this.globalMeasureFolder.toGeoJSON();
+        // 3. Bu metadataları paketin içine gizlice göm
+        geojsonData.properties = {
+            ...geojsonData.properties,
+            exportId: this.exportCounter,
+            exportDate: this.lastExportDate,
+            creator: "Fatih Muaz" // Backend'e kimin oluşturduğu bilgisi de gitsin
+        };
 
-        // Veriyi daha okunabilir kılmak için JSON formatına sokuyoruz
-        const convertedString = JSON.stringify(rawGeoJson, null, 2);
+        // Loading ekranını aç
+        if (window.LoadingManager) window.LoadingManager.show();
 
-        // Tarayıcı üzerinden sanal bir dosya (Blob) üretiyoruz
-        const blobObject = new Blob([convertedString], { type: "application/json" });
-        
-        // Sanal bir indirme köprüsü yani link kuruyoruz
-        const downloadBridge = document.createElement("a");
-        downloadBridge.href = URL.createObjectURL(blobObject);
-        
-        // Dosya adı dinamik olsun diye o anki zaman damgasını ekliyoruz
-        downloadBridge.download = `harita_olcumleri_${timeStamp}_${this.exportCounter}.geojson`;
-
-        // Arka planda linke tıklama simülasyonu yapıp dosyayı indiriyoruz
-        document.body.appendChild(downloadBridge);
-        downloadBridge.click();
-        
-        // Temizlik: Bellekte yer kaplamaması için sanal linki imha ediyoruz
-        document.body.removeChild(downloadBridge);
+        // Veriyi Backend'e POST at
+        window.ApiService.saveMeasurements(geojsonData)
+            .then(res => {
+                // Başarılı olduğunda kullanıcıya sayaç ve saat bilgisiyle şık bir mesaj dön
+                alert(`Ölçümleriniz başarıyla sunucuya kaydedildi!\nKayıt No: ${this.exportCounter}\nTarih: ${new Date(this.lastExportDate).toLocaleString('tr-TR')}`);
+            })
+            .catch(err => {
+                alert("Sunucuya Bağlanılamadı! Backend Ayakta Mı?\nHata Detayı: " + err.message);
+            })
+            .finally(() => {
+                if (window.LoadingManager) window.LoadingManager.hide();
+            });
     }
 };
 

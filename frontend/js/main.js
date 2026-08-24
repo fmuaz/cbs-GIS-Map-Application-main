@@ -73,7 +73,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function loadLayerController(fileObject, fileName) {
+    function loadLayerController(fileName) {
         if (uploadedFileSet.has(fileName)) {
             alert(window.APP_MESSAGES.LAYER_ALREADY_LOADED(fileName));
             focusLayerController(fileName); 
@@ -83,64 +83,56 @@ window.addEventListener('DOMContentLoaded', () => {
         // İŞLEM BAŞLADI: Loading Ekranını Aç
         if (window.LoadingManager) window.LoadingManager.show();
 
-        const reader = new FileReader();
+        // Backend'e istek atarak dosyayı çek
+        ApiService.fetchGeoJson(fileName)
+            .then(incomingModel => {
+                setTimeout(() => {
+                    try {
+                        const standardizedGeoJson = {
+                            type: incomingModel.type || "FeatureCollection",
+                            features: (incomingModel.features || incomingModel.Features || []).map(f => {
+                                return {
+                                    type: f.type || "Feature",
+                                    geometry: {
+                                        type: f.geometry ? (f.geometry.type || f.geometry.Type) : "Point",
+                                        coordinates: f.geometry ? (f.geometry.coordinates || f.geometry.Coordinates) : []
+                                    },
+                                    properties: f.properties || f.Properties || {}
+                                };
+                            })
+                        };
 
-        reader.onload = function(event) {
-            // Tarayıcının nefes alması için çok ufak bir mola (Loading animasyonunun çizilmesi için)
-            setTimeout(() => {
-                try {
-                    // Yerel dosyayı metin olarak oku ve JSON'a çevir
-                    const incomingModel = JSON.parse(event.target.result);
+                        let pointCount = 0, lineCount = 0, polygonCount = 0;
+                        standardizedGeoJson.features.forEach(f => {
+                            if (f.geometry) {
+                                let geometryType = f.geometry.type.toLowerCase();
+                                if (geometryType.includes("point")) pointCount++;
+                                else if (geometryType.includes("line")) lineCount++;
+                                else if (geometryType.includes("polygon")) polygonCount++;
+                            }
+                        });
 
-                    const standardizedGeoJson = {
-                        type: incomingModel.type || "FeatureCollection",
-                        features: (incomingModel.features || incomingModel.Features || []).map(f => {
-                            return {
-                                type: f.type || "Feature",
-                                geometry: {
-                                    type: f.geometry ? (f.geometry.type || f.geometry.Type) : "Point",
-                                    coordinates: f.geometry ? (f.geometry.coordinates || f.geometry.Coordinates) : []
-                                },
-                                properties: f.properties || f.Properties || {}
-                            };
-                        })
-                    };
+                        MapManager.renderLayer(fileName, standardizedGeoJson);
+                        uploadedFileSet.add(fileName);
 
-                    let pointCount = 0, lineCount = 0, polygonCount = 0;
-                    standardizedGeoJson.features.forEach(f => {
-                        if (f.geometry) {
-                            let geometryType = f.geometry.type.toLowerCase();
-                            if (geometryType.includes("point")) pointCount++;
-                            else if (geometryType.includes("line")) lineCount++;
-                            else if (geometryType.includes("polygon")) polygonCount++;
-                        }
-                    });
+                        Sidebar.appendLayerCard(
+                            fileName, pointCount, lineCount, polygonCount, 
+                            toggleLayerVisibility, deleteLayerController, focusLayerController
+                        );
 
-                    MapManager.renderLayer(fileName, standardizedGeoJson);
-                    uploadedFileSet.add(fileName);
+                        // İŞLEM BİTTİ: Loading Ekranını Kapat
+                        if (window.LoadingManager) window.LoadingManager.hide();
 
-                    Sidebar.appendLayerCard(
-                        fileName, pointCount, lineCount, polygonCount, 
-                        toggleLayerVisibility, deleteLayerController, focusLayerController
-                    );
-
-                    // İŞLEM BİTTİ: Loading Ekranını Kapat
-                    if (window.LoadingManager) window.LoadingManager.hide();
-
-                } catch (error) {
-                    if (window.LoadingManager) window.LoadingManager.hide();
-                    alert("Dosya parse edilirken hata oluştu: " + error.message);
-                }
-            }, 50);
-        };
-
-        reader.onerror = function() {
-            if (window.LoadingManager) window.LoadingManager.hide();
-            alert("Dosya yerel bilgisayardan okunamadı!");
-        };
-
-        // Fiziksel dosyayı Text (metin) olarak okumayı başlat
-        reader.readAsText(fileObject);
+                    } catch (error) {
+                        if (window.LoadingManager) window.LoadingManager.hide();
+                        alert("Dosya parse edilirken hata oluştu: " + error.message);
+                    }
+                }, 50);
+            })
+            .catch(error => {
+                if (window.LoadingManager) window.LoadingManager.hide();
+                alert("Sunucudan dosya alınamadı: " + error.message);
+            });
     }
 
     // Gizli dosya seçici elementin değişim olayını dinliyoruz
@@ -149,20 +141,21 @@ window.addEventListener('DOMContentLoaded', () => {
         const fileObject = e.target.files[0]; 
         const fileName = fileObject.name;
 
-        // DURUM 1: Yerel Ölçüm Dosyası (Senin Çizimlerin)
-        if (fileName.includes("harita_olcumleri")) {
-            window.ImportService.handleMeasurementImport(
-                fileObject, fileName, map, uploadedFileSet, 
-                toggleLayerVisibility, deleteLayerController
-            );
-        } 
-        // DURUM 2: Normal Katman (3000 Noktalı Dosya vb.)
-        else {
-            // ARTIK DOSYANIN KENDİSİNİ DE FONKSİYONA GÖNDERİYORUZ
-            loadLayerController(fileObject, fileName);
-        }
+        if (window.LoadingManager) window.LoadingManager.show();
 
-        // Aynı dosyayı silip tekrar yükleyebilmek için input'u sıfırla
-        e.target.value = '';
+        // ARTIK İSTİSNA YOK: Ne yüklenirse yüklensin Java'ya gönderilecek!
+        ApiService.uploadGeoJson(fileObject)
+            .then(message => {
+                console.log("Backend Yanıtı: ", message);
+                // Upload başarılıysa sunucudan çekip haritaya bas
+                loadLayerController(fileName);
+            })
+            .catch(err => {
+                if (window.LoadingManager) window.LoadingManager.hide();
+                alert("Sunucuya Bağlanılamadı! Backend Ayakta Mı? Hata: " + err.message);
+            })
+            .finally(() => {
+                e.target.value = ''; // Input'u sıfırla
+            });
     });
 });

@@ -4,8 +4,15 @@ import com.staj.cbs_harita_app.model.GeoJsonModel;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class GeoJsonService {
@@ -17,25 +24,20 @@ public class GeoJsonService {
     private String directoryPath;
 
     public GeoJsonModel getGeoJsonModel(String fileName) throws Exception {
-        // Güvenlik kontrolü: Dosya adı ".." içeriyorsa potansiyel bir zafiyet olabilir
         if (fileName.contains("..")) throw new SecurityException("Zafiyet algılandı!");
         
         String filePath = directoryPath + "/" + fileName;
         File file = new File(filePath);
 
-        // Önce dosya var mı kontrolü
         if (!file.exists()) {
             throw new FileNotFoundException("Dosya bulunamadı: " + filePath);
         }
 
-        // Sonra dosya boyutu kontrolü
         if (file.length() == 0) {
             throw new IllegalArgumentException("Dosyanın içi boş");
         }
 
-        // En son okuma işlemi (try catch ile kontrol sağlanır)
         try (InputStream inputStream = new FileInputStream(file)) {
-            // Okunan veriyi ramdeki değişkene atıyoruz
             this.geoJsonModel = objectMapper.readValue(inputStream, GeoJsonModel.class);
             return this.geoJsonModel;
         } catch (IOException e) {
@@ -45,5 +47,33 @@ public class GeoJsonService {
 
     public String getDirectoryPath() {
         return this.directoryPath;
+    }
+
+    // Dışarıdan Yüklenen Dosyayı Klasöre Kaydet
+    public void saveFile(MultipartFile file) throws Exception {
+        if (file.isEmpty()) throw new IllegalArgumentException("Boş dosya yüklenemez.");
+        
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || fileName.contains("..")) throw new SecurityException("Zafiyet algılandı!");
+        
+        Path path = Paths.get(directoryPath + "/" + fileName);
+        Files.write(path, file.getBytes());
+    }
+
+    // Klasördeki Tüm JSON Dosyalarını Listele
+    public List<String> getAllGeoJsonFiles() {
+        File dir = new File(directoryPath);
+        if (!dir.exists() || !dir.isDirectory()) return List.of();
+        
+        File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".json") || name.toLowerCase().endsWith(".geojson"));
+        if (files == null) return List.of();
+        
+        return Arrays.stream(files).map(File::getName).collect(Collectors.toList());
+    }
+
+    // Haritada Çizilen Ölçümleri (Export) Sunucuya Kaydet
+    public void saveMeasurementData(String geoJsonData) throws Exception {
+        Path path = Paths.get(directoryPath + "/harita_olcumleri.json");
+        Files.write(path, geoJsonData.getBytes());
     }
 }

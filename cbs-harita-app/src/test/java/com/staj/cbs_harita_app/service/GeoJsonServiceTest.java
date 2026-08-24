@@ -9,6 +9,8 @@ import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import com.staj.cbs_harita_app.model.GeoJsonModel;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class GeoJsonServiceTest {
@@ -87,5 +89,20 @@ class GeoJsonServiceTest {
         });
 
         assertTrue(exception.getMessage().contains("Zafiyet algılandı"));
+    }
+
+    @Test
+    void getGeoJsonModel_GecerliDosyaOkundugunda_ModelDondurmeli(@TempDir Path tempDir) throws Exception{
+        // 1.Given(Geçici bir json dosyası oluşturuyoruz)
+        Path validFlePath=tempDir.resolve("harita.json");
+        // 2. İçine basit, geçerli bir JSON metni yazıyoruz sanki diske kaydetmişiz gibi
+        String ornekJson = "{ \"type\": \"FeatureCollection\", \"features\": [] }";
+        Files.writeString(validFlePath, ornekJson);
+        // 3. Servisin bakacağı yolu, bu geçici klasör olarak ayarlıyoruz
+        ReflectionTestUtils.setField(geoJsonService, "directoryPath", tempDir.toString());
+        // When - Metodu çağırıp dönen veriyi yakalıyoruz
+        GeoJsonModel sonuc = geoJsonService.getGeoJsonModel("harita.json");
+        // Then - 1. Dönen sonuç null OLMAMALI
+        assertNotNull(sonuc);
     }
 }
