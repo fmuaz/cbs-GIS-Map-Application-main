@@ -58,9 +58,11 @@ public class GeoJsonController {
 
     // 3. Çizilen ölçümleri kaydetme (Export/Save)
     @PostMapping("/saveMeasurements")
-    public ResponseEntity<?> saveMeasurements(@RequestBody String geoJsonData) {
+    public ResponseEntity<?> saveMeasurements(@RequestBody com.staj.cbs_harita_app.model.GeoJsonModel geoJsonData) {
         try {
-            geoJsonService.saveMeasurementData(geoJsonData);
+            // Şimdilik gelen modeli JSON string'e çevirip kaydedelim veya direkt servise yollayalım
+            String jsonString = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(geoJsonData);
+            geoJsonService.saveMeasurementData(jsonString);
             return ResponseEntity.ok("Ölçümler başarıyla sunucuya kaydedildi.");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Kaydetme hatası: " + e.getMessage());
