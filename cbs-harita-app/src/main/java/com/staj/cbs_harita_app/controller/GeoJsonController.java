@@ -59,11 +59,11 @@ public class GeoJsonController {
     @PostMapping("/saveMeasurements")
     public ResponseEntity<?> saveMeasurements(@RequestBody java.util.Map<String, Object> geoJsonData) {
         try {
-            // Frontend'den gelen esnek veriyi (Map) tekrar JSON Metnine (String) çevir
             String jsonString = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(geoJsonData);
-            // Servise gönder ve dosyaya yaz
-            geoJsonService.saveMeasurementData(jsonString);
-            return ResponseEntity.ok("Ölçümler başarıyla sunucuya kaydedildi.");
+            // Servisten gelen benzersiz dosya adını al
+            String savedFileName = geoJsonService.saveMeasurementData(jsonString);
+            // Frontend'e sadece "başarılı" demek yerine dosyanın adını dönüyoruz
+            return ResponseEntity.ok(savedFileName);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Kaydetme hatası: " + e.getMessage());
         }
