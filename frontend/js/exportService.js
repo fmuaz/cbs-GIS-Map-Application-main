@@ -32,8 +32,47 @@ const ExportService = {
             return;
         }
 
-        // 1. Havuzdaki çizimleri GeoJSON formatına çevir
-        const geojsonData = this.globalMeasureFolder.toGeoJSON();
+        // 1. Havuzdaki çizimleri GeoJSON formatına çevir VE STİLLERİ (Renk, Çizgi vb.) KAYDET
+        const features = [];
+        this.globalMeasureFolder.eachLayer(function (layer) {
+            // Eğer layer bir grupsa (distanceTool veya areaTool genelde grup atar), içindekileri dön
+            const extractFeature = (subLayer) => {
+                if (typeof subLayer.toGeoJSON === 'function') {
+                    const feature = subLayer.toGeoJSON();
+                    feature.properties = feature.properties || {};
+                    
+                    // Leaflet'teki Çizgi, Renk ve Stil ayarlarını GeoJSON properties içine göm
+                    if (subLayer.options) {
+                        if (subLayer.options.color) feature.properties.color = subLayer.options.color;
+                        if (subLayer.options.fillColor) feature.properties.fillColor = subLayer.options.fillColor;
+                        if (subLayer.options.fillOpacity) feature.properties.fillOpacity = subLayer.options.fillOpacity;
+                        if (subLayer.options.weight) feature.properties.weight = subLayer.options.weight;
+                        if (subLayer.options.dashArray) feature.properties.dashArray = subLayer.options.dashArray;
+                        if (subLayer.options.radius) feature.properties.radius = subLayer.options.radius;
+                    }
+                    
+                    // Ekrandaki o "1498.26 km" veya "Alan: ..." etiketlerini (Tooltip) JSON'a kaydet
+                    if (subLayer.getTooltip && subLayer.getTooltip()) {
+                        feature.properties.label = subLayer.getTooltip().getContent();
+                    }
+
+                    features.push(feature);
+                }
+            };
+
+            // Hem tekil objeleri hem de grup içindeki objeleri tarayacak mantık
+            if (layer instanceof L.LayerGroup || layer instanceof L.FeatureGroup) {
+                layer.eachLayer(extractFeature);
+            } else {
+                extractFeature(layer);
+            }
+        });
+
+        // Yeni ve zenginleştirilmiş GeoJSON objemizi oluşturuyoruz
+        const geojsonData = {
+            type: "FeatureCollection",
+            features: features
+        };
 
         // 2. Sayaç ve Tarih metadatalarını güncelle
         this.exportCounter++;

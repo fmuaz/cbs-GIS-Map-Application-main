@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets; // UTF-8 KORUMASI İÇİN EKLENDİ
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -19,7 +20,6 @@ import java.util.stream.Collectors;
 public class GeoJsonService {
 
     // UYARI 1 ÇÖZÜMÜ: Sınıf seviyesindeki geoJsonModel değişkenini sildik.
-    // ObjectMapper'a "Tanımadığın veri (exportId vb.) gelirse çökme, görmezden gel" dedik.
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -40,9 +40,9 @@ public class GeoJsonService {
             throw new IllegalArgumentException("Dosyanın içi boş");
         }
 
-        try (InputStream inputStream = new FileInputStream(file)) {
-            // Veriyi sınıf değişkenine değil, sadece bu metodun içinde yaşayan "lokal" bir değişkene atıyoruz
-            GeoJsonModel model = objectMapper.readValue(inputStream, GeoJsonModel.class);
+        // Emojilerin (📐, 🗺️) Jackson'ı çökertmesini engellemek için UTF-8 okuyucu eklendi!
+        try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
+            GeoJsonModel model = objectMapper.readValue(reader, GeoJsonModel.class);
             return model;
         } catch (IOException e) {
             throw new IOException("JSON verisi modele dönüştürülürken hata oluştu..." + e.getMessage());
@@ -104,8 +104,8 @@ public class GeoJsonService {
             counter++;
         }
 
-        // Boş ismi buldu, dosyayı yaz
-        java.nio.file.Files.write(path, geoJsonData.getBytes());
+        // Emojileri (📐, 🗺️) ve Türkçe karakterleri bozmamak için UTF-8 formatında yazıyoruz!
+        java.nio.file.Files.write(path, geoJsonData.getBytes(StandardCharsets.UTF_8));
 
         // Oluşan yeni dosya adını (örneğin: harita_olcumleri_3.json) geri döndür
         return fileName;
