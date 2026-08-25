@@ -6,12 +6,16 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import com.staj.cbs_harita_app.model.GeoJsonModel;
+import org.springframework.web.multipart.MultipartFile;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class GeoJsonServiceTest {
 
@@ -46,7 +50,7 @@ class GeoJsonServiceTest {
         Exception exception = assertThrows(FileNotFoundException.class, () -> {
             geoJsonService.getGeoJsonModel(olmayanDosyaAdi);
         });
-        
+
         // Fırlatılan hatanın mesajı doğru mu diye ekstra kontrol edebiliriz
         assertTrue(exception.getMessage().contains("Dosya bulunamadı"));
     }
@@ -56,10 +60,10 @@ class GeoJsonServiceTest {
         // Given
         // 1. Geçici klasörün içine "bosHarita.json" adında bir yol tanımlıyoruz
         Path bosDosyaYolu = tempDir.resolve("bosHarita.json");
-        
+
         // 2. O yola gerçekten fiziksel (ama geçici) boş bir dosya yaratıyoruz
-        Files.createFile(bosDosyaYolu); 
-        
+        Files.createFile(bosDosyaYolu);
+
         // 3. Servisimize, haritaları okuyacağı klasör olarak bu geçici klasörün yolunu veriyoruz
         ReflectionTestUtils.setField(geoJsonService, "directoryPath", tempDir.toString());
 
@@ -76,10 +80,10 @@ class GeoJsonServiceTest {
         // Given
         // 1. Geçici klasörün içine "zafiyet.json" adında bir yol tanımlıyoruz
         Path zafiyetDosyaYolu = tempDir.resolve("zafiyet.json");
-        
+
         // 2. O yola gerçekten fiziksel (ama geçici) boş bir dosya yaratıyoruz
-        Files.createFile(zafiyetDosyaYolu); 
-        
+        Files.createFile(zafiyetDosyaYolu);
+
         // 3. Servisimize, haritaları okuyacağı klasör olarak bu geçici klasörün yolunu veriyoruz
         ReflectionTestUtils.setField(geoJsonService, "directoryPath", tempDir.toString());
 
@@ -102,7 +106,95 @@ class GeoJsonServiceTest {
         ReflectionTestUtils.setField(geoJsonService, "directoryPath", tempDir.toString());
         // When - Metodu çağırıp dönen veriyi yakalıyoruz
         GeoJsonModel sonuc = geoJsonService.getGeoJsonModel("harita.json");
-        // Then - 1. Dönen sonuç null OLMAMALI
+        // Then - Dönen sonuç null OLMAMALI
         assertNotNull(sonuc);
+    }
+
+    @Test
+    void getGeoJsonModel_GecersizJsonIceriyorsa_IOExceptionFirlatmali(@TempDir Path tempDir) throws Exception {
+        // Given
+        Path dosya = tempDir.resolve("bozuk.json");
+        Files.writeString(dosya, "{ bu geçerli bir json değil");
+        ReflectionTestUtils.setField(
+                geoJsonService,
+                "directoryPath",
+                tempDir.toString()
+        );
+        // When & Then
+        IOException exception = assertThrows(IOException.class, () -> {
+            geoJsonService.getGeoJsonModel("bozuk.json");
+        });
+        // Exception mesajını da kontrol ediyoruz
+        assertTrue(
+                exception.getMessage().contains("JSON verisi modele dönüştürülürken hata oluştu")
+        );
+    }
+
+    @Test
+    void saveFile_KlasorYoksa_FileNotFoundExceptionFirlatmali(@TempDir Path tempDir) throws Exception {
+        // Given
+        Path olmayanKlasor = tempDir.resolve("olmayan-klasor");
+        ReflectionTestUtils.setField(
+                geoJsonService,
+                "directoryPath",
+                olmayanKlasor.toString()
+        );
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+
+        // When & Then
+        FileNotFoundException exception = assertThrows(
+                FileNotFoundException.class,
+                () -> geoJsonService.saveFile(file)
+        );
+
+        assertTrue(exception.getMessage().contains("KRİTİK HATA"));
+    }
+
+    @Test
+    void saveFile_DosyaAdiNullIse_SecurityExceptionFirlatmali(@TempDir Path tempDir) throws Exception {
+        // Given
+        ReflectionTestUtils.setField(
+                geoJsonService,
+                "directoryPath",
+                tempDir.toString()
+        );
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getOriginalFilename()).thenReturn(null);
+
+        // When & Then
+        SecurityException exception = assertThrows(
+                SecurityException.class,
+                () -> geoJsonService.saveFile(file)
+        );
+        assertTrue(
+                exception.getMessage().contains("Zafiyet algılandı")
+        );
+    }
+
+    @Test
+    void saveFile_DosyaAdiZafiyetIceriyorsa_SecurityExceptionFirlatmali(@TempDir Path tempDir) throws Exception {
+        // Given
+        ReflectionTestUtils.setField(
+                geoJsonService,
+                "directoryPath",
+                tempDir.toString()
+        );
+
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getOriginalFilename()).thenReturn("../tehlikeli.json");
+
+        // When & Then
+        SecurityException exception = assertThrows(
+                SecurityException.class,
+                () -> geoJsonService.saveFile(file)
+        );
+        assertTrue(
+                exception.getMessage().contains("Zafiyet algılandı")
+        );
     }
 }
