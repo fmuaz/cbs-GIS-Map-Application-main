@@ -52,9 +52,9 @@ const ExportService = {
 
         // Veriyi Backend'e POST at
         window.ApiService.saveMeasurements(geojsonData)
-            .then(res => {
-                // Başarılı olduğunda kullanıcıya sayaç ve saat bilgisiyle şık bir mesaj dön
-                alert(`Ölçümleriniz başarıyla sunucuya kaydedildi!\nKayıt No: ${this.exportCounter}\nTarih: ${new Date(this.lastExportDate).toLocaleString('tr-TR')}`);
+            .then(savedFileName => {
+                // Sadece basit bir alert yerine detaylı bir bilgilendirme
+                alert(`✅ Ölçümleriniz başarıyla sunucuya kaydedildi!\n\n📄 Dosya Adı: ${savedFileName}\n📂 Kayıt Yeri: Backend (${window.APP_MESSAGES?.SERVER_PATH || "Sunucu Klasörü"})`);
             })
             .catch(err => {
                 alert("Sunucuya Bağlanılamadı! Backend Ayakta Mı?\nHata Detayı: " + err.message);
