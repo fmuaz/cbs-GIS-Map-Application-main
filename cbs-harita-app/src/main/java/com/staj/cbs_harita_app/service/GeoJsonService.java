@@ -2,6 +2,7 @@ package com.staj.cbs_harita_app.service;
 
 import com.staj.cbs_harita_app.model.GeoJsonModel;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,7 +19,9 @@ import java.util.stream.Collectors;
 public class GeoJsonService {
 
     // UYARI 1 ÇÖZÜMÜ: Sınıf seviyesindeki geoJsonModel değişkenini sildik.
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // ObjectMapper'a "Tanımadığın veri (exportId vb.) gelirse çökme, görmezden gel" dedik.
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Value("${map.data.path}")
     private String directoryPath;

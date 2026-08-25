@@ -54,7 +54,7 @@ const ExportService = {
         window.ApiService.saveMeasurements(geojsonData)
             .then(savedFileName => {
                 // Sadece basit bir alert yerine detaylı bir bilgilendirme
-                alert(`✅ Ölçümleriniz başarıyla sunucuya kaydedildi!\n\n📄 Dosya Adı: ${savedFileName}\n📂 Kayıt Yeri: Backend (${window.APP_MESSAGES?.SERVER_PATH || "Sunucu Klasörü"})`);
+                alert(`✅ Ölçümleriniz başarıyla kaydedildi!\n📄 Dosya Adı: ${savedFileName}`);
             })
             .catch(err => {
                 alert("Sunucuya Bağlanılamadı! Backend Ayakta Mı?\nHata Detayı: " + err.message);
