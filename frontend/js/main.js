@@ -93,18 +93,18 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Veritabanından Grup Adıyla Katman Yükleme Fonksiyonu
     function loadGroupController(grupAdi) {
         if (uploadedFileSet.has(grupAdi)) {
-            alert(window.APP_MESSAGES?.LAYER_ALREADY_LOADED ? window.APP_MESSAGES.LAYER_ALREADY_LOADED(grupAdi) : "Bu katman zaten yüklü!");
+            alert(window.APP_MESSAGES?.LAYER_ALREADY_LOADED ? window.APP_MESSAGES.LAYER_ALREADY_LOADED(grupAdi) : "Bu çalışma zaten yüklü!");
             focusLayerController(grupAdi); 
             if (window.LoadingManager) window.LoadingManager.hide();
             return; 
         }
 
-        // İŞLEM BAŞLADI: Loading Ekranını Aç
         if (window.LoadingManager) window.LoadingManager.show();
 
-        // Artık fetchGeoJson değil, fetchGroupByName kullanıyoruz!
+        // Backend'e istek atarak grubu çek
         ApiService.fetchGroupByName(grupAdi)
             .then(incomingModel => {
                 setTimeout(() => {
@@ -137,7 +137,6 @@ window.addEventListener('DOMContentLoaded', () => {
                             pointToLayer: function (feature, latlng) {
                                 const props = feature.properties || {};
                                 return L.circleMarker(latlng, {
-                                    // Önce dosyada kayıtlı stili ara, yoksa varsayılan kırmızı/sarı stili kullan
                                     radius: props.radius || window.GIS_CONFIG?.MEASURE_STYLE?.MARKER_RADIUS || 6,
                                     color: props.color || window.GIS_CONFIG?.MEASURE_STYLE?.LINE_COLOR || '#dc3545',
                                     fillColor: props.fillColor || window.GIS_CONFIG?.MEASURE_STYLE?.FILL_COLOR || '#ffc107',
@@ -166,86 +165,53 @@ window.addEventListener('DOMContentLoaded', () => {
                         restoredLayer.eachLayer((layer) => {
                             const currentId = 'restored_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
-                            // --- 1. NOKTA (POINT) İÇİN DİNAMİK POPUP (YENİ EKLENDİ!) ---
+                            // --- 1. NOKTA İÇİN POPUP ---
                             if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
                                 const lat = layer.getLatLng().lat.toFixed(5);
                                 const lng = layer.getLatLng().lng.toFixed(5);
-                                
                                 const pointPopupHtml = `
                                     <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                                         <div id="main-content-${currentId}">
-                                            <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">📍 Nokta Bilgileri (Yüklenen)</div>
+                                            <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">📍 Nokta Bilgileri</div>
                                             <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
                                                 <tr><td style="color: #6c757d;">Enlem:</td><td style="font-weight: bold; text-align: right;">${lat}</td></tr>
                                                 <tr><td style="color: #6c757d;">Boylam:</td><td style="font-weight: bold; text-align: right;">${lng}</td></tr>
                                             </table>
                                             ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
-                                            <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Noktayı Sil</button>
+                                            <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Sil</button>
                                         </div>
                                     </div>`;
                                 layer.bindPopup(pointPopupHtml, { maxWidth: 250 });
                             }
-
-                            // --- 2. POLYGON (ALAN) İÇİN DİNAMİK POPUP ---
+                            // --- 2. POLYGON İÇİN POPUP ---
                             else if (layer instanceof L.Polygon) {
-                                const rawLatLngs = layer.getLatLngs()[0];
-                                if (rawLatLngs && rawLatLngs.length >= 3) {
-                                    const turfCoordinates = rawLatLngs.map(p => [parseFloat(p.lng), parseFloat(p.lat)]);
-                                    turfCoordinates.push([parseFloat(rawLatLngs[0].lng), parseFloat(rawLatLngs[0].lat)]);
-                                    const turfPolygon = turf.polygon([turfCoordinates]);
-                                    const areaSquareMeters = turf.area(turfPolygon);
-                                    let areaFormatted = areaSquareMeters >= 1000000 
-                                        ? `${(areaSquareMeters / 1000000).toFixed(2)} km²` 
-                                        : `${areaSquareMeters.toFixed(0)} m²`;
+                                const labelContent = layer.feature.properties.label || `Geometri Alanı`;
+                                layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip(layer.getBounds().getCenter());
 
-                                    // Eski Etiketi (Tooltip) aynen geri getiriyoruz
-                                    const labelContent = layer.feature.properties.label || `📐 Alan: ${areaFormatted}`;
-                                    layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip(layer.getBounds().getCenter());
-
-                                    const polyPopupHtml = `
-                                        <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
-                                            <div id="main-content-${currentId}">
-                                                <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri (Yüklenen)</div>
-                                                <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
-                                                    <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Hesaplanmış Alan</td></tr>
-                                                    <tr><td style="color: #6c757d;">Toplam Alan:</td><td style="font-weight: bold; color: #28a745; text-align: right;">${areaFormatted}</td></tr>
-                                                </table>
-                                                ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
-                                                <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Alanı Haritadan Sil</button>
-                                            </div>
-                                        </div>`;
-                                    layer.bindPopup(polyPopupHtml, { maxWidth: 250 });
-                                }
+                                const polyPopupHtml = `
+                                    <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
+                                        <div id="main-content-${currentId}">
+                                            <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri</div>
+                                            ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
+                                            <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Sil</button>
+                                        </div>
+                                    </div>`;
+                                layer.bindPopup(polyPopupHtml, { maxWidth: 250 });
                             } 
-                            
-                            // --- 3. LINE (ÇİZGİ) İÇİN DİNAMİK POPUP ---
+                            // --- 3. LINE İÇİN POPUP ---
                             else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-                                const latlngs = layer.getLatLngs();
-                                if (latlngs && latlngs.length >= 2) {
-                                    let totalDist = 0;
-                                    for(let i = 0; i < latlngs.length - 1; i++) {
-                                        totalDist += latlngs[i].distanceTo(latlngs[i+1]);
-                                    }
-                                    let distanceKm = (totalDist / 1000).toFixed(2);
+                                const labelContent = layer.feature.properties.label || `Çizgi Uzunluğu`;
+                                layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
 
-                                    // Eski Etiketi (Tooltip) aynen geri getiriyoruz
-                                    const labelContent = layer.feature.properties.label || `${distanceKm} km`;
-                                    layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
-
-                                    const linePopupHtml = `
-                                        <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
-                                            <div id="main-content-${currentId}">
-                                                <div style="font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🗺️ Ölçüm Bilgileri (Yüklenen)</div>
-                                                <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
-                                                    <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Çizgi Rotası</td></tr>
-                                                    <tr><td style="color: #6c757d;">Toplam Çevre:</td><td style="font-weight: bold; color: #dc3545; text-align: right;">${distanceKm} km</td></tr>
-                                                </table>
-                                                ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
-                                                <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Bu Ölçümü Haritadan Sil</button>
-                                            </div>
-                                        </div>`;
-                                    layer.bindPopup(linePopupHtml, { maxWidth: 250 });
-                                }
+                                const linePopupHtml = `
+                                    <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
+                                        <div id="main-content-${currentId}">
+                                            <div style="font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🗺️ Çizgi Bilgileri</div>
+                                            ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
+                                            <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Sil</button>
+                                        </div>
+                                    </div>`;
+                                layer.bindPopup(linePopupHtml, { maxWidth: 250 });
                             }
 
                             // POPUP ETKİLEŞİMLERİ (Silme ve Metadata)
@@ -257,32 +223,25 @@ window.addEventListener('DOMContentLoaded', () => {
                             });
                         });
 
-                        // Katmanı sisteme kaydet (Sidebar'dan gizle/göster yapabilmek için çok önemli)
-                        MapManager.mapLayersStorage[fileName] = restoredLayer;
-
-                        uploadedFileSet.add(fileName);
+                        MapManager.mapLayersStorage[grupAdi] = restoredLayer;
+                        uploadedFileSet.add(grupAdi);
 
                         Sidebar.appendLayerCard(
                             grupAdi, pointCount, lineCount, polygonCount, 
                             toggleLayerVisibility, deleteLayerController, focusLayerController
                         );
 
-                        // İŞLEM BİTTİ: Loading Ekranını Kapat
                         if (window.LoadingManager) window.LoadingManager.hide();
 
                     } catch (error) {
                         if (window.LoadingManager) window.LoadingManager.hide();
-                        alert("Dosya parse edilirken hata oluştu: " + error.message);
+                        alert("Harita verisi işlenirken hata oluştu: " + error.message);
                     }
                 }, 50);
             })
             .catch(error => {
                 if (window.LoadingManager) window.LoadingManager.hide();
-                alert("Sunucudan dosya alınamadı: " + error.message);
-            })
-            .finally(() => {
-                // YAMA 2: İşlem başarılı da olsa hatalı da olsa garanti olarak kapat!
-                if (window.LoadingManager) window.LoadingManager.hide();
+                alert("Veritabanından grup alınamadı: " + error.message);
             });
     }
 
