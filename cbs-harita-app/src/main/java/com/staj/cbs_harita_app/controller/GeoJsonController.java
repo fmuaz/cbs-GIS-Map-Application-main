@@ -16,7 +16,7 @@ public class GeoJsonController {
         this.geoJsonService = geoJsonService;
     }
 
-    @GetMapping("/getGeojson/{fileName:.+}")
+    @GetMapping("/getGeoJson/{fileName:.+}")
     public ResponseEntity<?> getGeoJsonData(@PathVariable String fileName){
         try{
             GeoJsonModel model = geoJsonService.getGeoJsonModel(fileName);
