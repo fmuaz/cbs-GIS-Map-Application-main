@@ -1,113 +1,154 @@
 package com.staj.cbs_harita_app.service;
 
-import com.staj.cbs_harita_app.model.GeoJsonModel;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.staj.cbs_harita_app.model.GeoJsonModel;
+import com.staj.cbs_harita_app.model.MeasurementEntity;
+import com.staj.cbs_harita_app.repository.MeasurementRepository;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets; // UTF-8 KORUMASI İÇİN EKLENDİ
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class GeoJsonService {
 
-    // UYARI 1 ÇÖZÜMÜ: Sınıf seviyesindeki geoJsonModel değişkenini sildik.
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Value("${map.data.path}")
     private String directoryPath;
 
+    private final MeasurementRepository repository;
+    private final GeometryFactory geometryFactory = new GeometryFactory();
+
+    @Autowired
+    public GeoJsonService(MeasurementRepository repository) {
+        this.repository = repository;
+    }
+
     public GeoJsonModel getGeoJsonModel(String fileName) throws Exception {
         if (fileName.contains("..")) throw new SecurityException("Zafiyet algılandı!");
-
         String filePath = directoryPath + "/" + fileName;
         File file = new File(filePath);
+        if (!file.exists()) throw new FileNotFoundException("Dosya bulunamadı: " + filePath);
+        if (file.length() == 0) throw new IllegalArgumentException("Dosyanın içi boş");
 
-        if (!file.exists()) {
-            throw new FileNotFoundException("Dosya bulunamadı: " + filePath);
-        }
-
-        if (file.length() == 0) {
-            throw new IllegalArgumentException("Dosyanın içi boş");
-        }
-
-        // Emojilerin (📐, 🗺️) Jackson'ı çökertmesini engellemek için UTF-8 okuyucu eklendi!
         try (Reader reader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)) {
-            GeoJsonModel model = objectMapper.readValue(reader, GeoJsonModel.class);
-            return model;
+            return objectMapper.readValue(reader, GeoJsonModel.class);
         } catch (IOException e) {
             throw new IOException("JSON verisi modele dönüştürülürken hata oluştu..." + e.getMessage());
         }
     }
 
-    // UYARI 2 İÇİN: Lombok kullanmadığımız için manuel yazılan metodumuz kalıyor.
-    public String getDirectoryPath() {
-        return this.directoryPath;
-    }
+    public String getDirectoryPath() { return this.directoryPath; }
 
-    // Dışarıdan Yüklenen Dosyayı Klasöre Kaydet
     public void saveFile(MultipartFile file) throws Exception {
         if (file.isEmpty()) throw new IllegalArgumentException("Boş dosya yüklenemez.");
-
-        // KLASÖR KONTROLÜ
-        java.io.File directory = new java.io.File(directoryPath);
-        if (!directory.exists()) {
-            throw new java.io.FileNotFoundException("KRİTİK HATA: application.properties dosyasında belirtilen klasör (" + directoryPath + ") bilgisayarında YOK! Lütfen önce bu klasörü oluştur.");
-        }
+        File directory = new File(directoryPath);
+        if (!directory.exists()) throw new FileNotFoundException("Klasör bulunamadı.");
         String fileName = file.getOriginalFilename();
         if (fileName == null || fileName.contains("..")) throw new SecurityException("Zafiyet algılandı!");
-
         Path path = Paths.get(directoryPath + "/" + fileName);
         Files.write(path, file.getBytes());
     }
 
-    // Klasördeki Tüm JSON Dosyalarını Listele
     public List<String> getAllGeoJsonFiles() {
         File dir = new File(directoryPath);
         if (!dir.exists() || !dir.isDirectory()) return List.of();
-
         File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".json") || name.toLowerCase().endsWith(".geojson"));
         if (files == null) return List.of();
-
         return Arrays.stream(files).map(File::getName).collect(Collectors.toList());
     }
 
-    // Haritada Çizilen Ölçümleri Export tuşu ile Sunucuya Kaydet
     public String saveMeasurementData(String geoJsonData) throws Exception {
-        java.io.File directory = new java.io.File(directoryPath);
+        JsonNode rootNode = objectMapper.readTree(geoJsonData);
+        JsonNode features = rootNode.path("features");
 
-        if (!directory.exists()) {
-            throw new java.io.FileNotFoundException("KRİTİK HATA: application.properties dosyasında belirtilen klasör yolu (" + directoryPath + ") bilgisayarında YOK!");
+        int savedCount = 0;
+
+        if (features.isArray()) {
+            for (JsonNode featureNode : features) {
+                MeasurementEntity entity = new MeasurementEntity();
+
+                JsonNode geometryNode = featureNode.path("geometry");
+                if (!geometryNode.isMissingNode() && !geometryNode.isNull()) {
+                    String type = geometryNode.path("type").asText();
+                    JsonNode coordsNode = geometryNode.path("coordinates");
+
+                    Geometry geometry = parseGeometry(type, coordsNode);
+                    if (geometry != null) {
+                        geometry.setSRID(4326);
+                        entity.setGeometry(geometry);
+                        entity.setGeometryType(geometry.getGeometryType());
+                    }
+                }
+
+                JsonNode propertiesNode = featureNode.path("properties");
+                if (!propertiesNode.isMissingNode() && !propertiesNode.isNull()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propertiesMap = objectMapper.convertValue(propertiesNode, Map.class);
+                    entity.setProperties(propertiesMap);
+
+                    if (propertiesMap.containsKey("exportId")) {
+                        entity.setExportId(Integer.parseInt(propertiesMap.get("exportId").toString()));
+                    }
+                    if (propertiesMap.containsKey("creator")) {
+                        entity.setCreator(propertiesMap.get("creator").toString());
+                    }
+                }
+
+                repository.save(entity);
+                savedCount++;
+            }
         }
 
-        // Temel dosya adımız
-        String baseName = "harita_olcumleri";
-        String extension = ".json";
-        String fileName = baseName + extension;
+        return savedCount + " adet çizim/ölçüm doğrudan veritabanına (PostGIS) kaydedildi! 🚀";
+    }
 
-        java.nio.file.Path path = java.nio.file.Paths.get(directoryPath + "/" + fileName);
-
-        // Eğer dosya zaten varsa, sayacı 2'den başlatarak boş isim bulana kadar artır
-        int counter = 2;
-        while (java.nio.file.Files.exists(path)) {
-            fileName = baseName + "_" + counter + extension;
-            path = java.nio.file.Paths.get(directoryPath + "/" + fileName);
-            counter++;
+    private Geometry parseGeometry(String type, JsonNode coordsNode) {
+        try {
+            if ("Point".equalsIgnoreCase(type)) {
+                double lng = coordsNode.get(0).asDouble();
+                double lat = coordsNode.get(1).asDouble();
+                return geometryFactory.createPoint(new Coordinate(lng, lat));
+            }
+            else if ("LineString".equalsIgnoreCase(type)) {
+                Coordinate[] coords = new Coordinate[coordsNode.size()];
+                for (int i = 0; i < coordsNode.size(); i++) {
+                    double lng = coordsNode.get(i).get(0).asDouble();
+                    double lat = coordsNode.get(i).get(1).asDouble();
+                    coords[i] = new Coordinate(lng, lat);
+                }
+                return geometryFactory.createLineString(coords);
+            }
+            else if ("Polygon".equalsIgnoreCase(type)) {
+                JsonNode ringNode = coordsNode.get(0);
+                Coordinate[] coords = new Coordinate[ringNode.size()];
+                for (int i = 0; i < ringNode.size(); i++) {
+                    double lng = ringNode.get(i).get(0).asDouble();
+                    double lat = ringNode.get(i).get(1).asDouble();
+                    coords[i] = new Coordinate(lng, lat);
+                }
+                return geometryFactory.createPolygon(coords);
+            }
+        } catch (Exception e) {
+            System.err.println("Geometri çözümlenirken hata oluştu: " + e.getMessage());
         }
-
-        // Emojileri (📐, 🗺️) ve Türkçe karakterleri bozmamak için UTF-8 formatında yazıyoruz!
-        java.nio.file.Files.write(path, geoJsonData.getBytes(StandardCharsets.UTF_8));
-
-        // Oluşan yeni dosya adını (örneğin: harita_olcumleri_3.json) geri döndür
-        return fileName;
+        return null;
     }
 }
