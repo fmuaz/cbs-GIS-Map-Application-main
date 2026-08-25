@@ -10,6 +10,18 @@ const ApiService = {
             });
     },
 
+    fetchMeasurementList: async function() {
+        const response = await fetch('/api/geo/getMeasurementList');
+        if (!response.ok) throw new Error("Kayıtlı ölçüm listesi alınamadı!");
+        return await response.json();
+    },
+
+    fetchMeasurementById: async function(exportId) {
+        const response = await fetch(`/api/geo/getMeasurement/${exportId}`);
+        if (!response.ok) throw new Error("Ölçüm verisi veritabanından çekilemedi!");
+        return await response.json();
+    },
+
     uploadGeoJson: function(fileObject) {
         const formData = new FormData();
         formData.append('file', fileObject);

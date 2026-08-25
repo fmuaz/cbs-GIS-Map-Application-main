@@ -68,4 +68,24 @@ public class GeoJsonController {
             return ResponseEntity.badRequest().body("Kaydetme hatası: " + e.getMessage());
         }
     }
+
+    @GetMapping("/getMeasurementList")
+    public org.springframework.http.ResponseEntity<List<Integer>> getMeasurementList() {
+        try {
+            List<Integer> ids = geoJsonService.getAllMeasurementExportIds();
+            return org.springframework.http.ResponseEntity.ok(ids);
+        } catch (Exception e) {
+            return org.springframework.http.ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/getMeasurement/{exportId}")
+    public org.springframework.http.ResponseEntity<GeoJsonModel> getMeasurementById(@PathVariable Integer exportId) {
+        try {
+            GeoJsonModel model = geoJsonService.getMeasurementByExportId(exportId);
+            return org.springframework.http.ResponseEntity.ok(model);
+        } catch (Exception e) {
+            return org.springframework.http.ResponseEntity.internalServerError().build();
+        }
+    }
 }

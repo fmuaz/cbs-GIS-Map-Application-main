@@ -120,6 +120,60 @@ public class GeoJsonService {
         return savedCount + " adet çizim/ölçüm doğrudan veritabanına (PostGIS) kaydedildi! 🚀";
     }
 
+    // Veritabanındaki kayıtlı ölçüm gruplarının listesini döner (Sidebar'da listeletmek için)
+    public List<Integer> getAllMeasurementExportIds() {
+        return repository.findAll().stream()
+                .map(MeasurementEntity::getExportId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    // Belirli bir exportId'ye ait verileri veritabanından çekip GeoJSON modeline çevirir
+    public GeoJsonModel getMeasurementByExportId(Integer exportId) throws Exception {
+        List<MeasurementEntity> entities = repository.findByExportId(exportId);
+
+        GeoJsonModel model = new GeoJsonModel();
+        List<GeoJsonModel.Feature> features = new java.util.ArrayList<>();
+
+        for (MeasurementEntity entity : entities) {
+            GeoJsonModel.Feature feature = new GeoJsonModel.Feature();
+            feature.setType("Feature");
+
+            if (entity.getGeometry() != null) {
+                GeoJsonModel.Feature.Geometry geometry = new GeoJsonModel.Feature.Geometry();
+                geometry.setType(entity.getGeometry().getGeometryType());
+
+                org.locationtech.jts.geom.Geometry geom = entity.getGeometry();
+                if ("Point".equalsIgnoreCase(geom.getGeometryType())) {
+                    geometry.setCoordinates(new double[]{geom.getCoordinate().x, geom.getCoordinate().y});
+                } else {
+                    org.locationtech.jts.geom.Coordinate[] coords = geom.getCoordinates();
+                    double[][] coordArray = new double[coords.length][2];
+                    for (int i = 0; i < coords.length; i++) {
+                        coordArray[i][0] = coords[i].x;
+                        coordArray[i][1] = coords[i].y;
+                    }
+                    if ("Polygon".equalsIgnoreCase(geom.getGeometryType())) {
+                        geometry.setCoordinates(new double[][][]{coordArray});
+                    } else {
+                        geometry.setCoordinates(coordArray);
+                    }
+                }
+                feature.setGeometry(geometry);
+            }
+
+            if (entity.getProperties() != null) {
+                feature.setProperties(entity.getProperties());
+            }
+
+            features.add(feature);
+        }
+
+        model.setFeatures(features);
+        return model;
+    }
+
     private Geometry parseGeometry(String type, JsonNode coordsNode) {
         try {
             if ("Point".equalsIgnoreCase(type)) {

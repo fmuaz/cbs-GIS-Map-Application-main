@@ -1,31 +1,37 @@
 package com.staj.cbs_harita_app.service;
 
+import com.staj.cbs_harita_app.model.GeoJsonModel;
+import com.staj.cbs_harita_app.repository.MeasurementRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import com.staj.cbs_harita_app.model.GeoJsonModel;
-import org.springframework.web.multipart.MultipartFile;
-
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class GeoJsonServiceTest {
 
-    private GeoJsonService geoJsonService;
+    @Mock
+    private MeasurementRepository repository; // Sahte (mock) repository
 
-    // Her testten ÖNCE çalışıp ortamı sıfırlayan metod
+    @InjectMocks
+    private GeoJsonService geoJsonService; // İçine sahte repository enjekte edilen gerçek servis
+
     @BeforeEach
     void setUp() {
-        geoJsonService = new GeoJsonService();
-        // @Value anotasyonunu taklit ediyoruz. Test için hayali bir yol veriyoruz.
+        // Test için directoryPath değerini set ediyoruz
         ReflectionTestUtils.setField(geoJsonService, "directoryPath", "C:\\Users\\Milsoft\\Desktop\\test-deneme");
     }
 
