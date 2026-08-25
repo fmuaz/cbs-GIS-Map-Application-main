@@ -78,17 +78,33 @@ public class GeoJsonService {
         return Arrays.stream(files).map(File::getName).collect(Collectors.toList());
     }
 
-    // Haritada Çizilen Ölçümleri (Export) Sunucuya Kaydet
-    public void saveMeasurementData(String geoJsonData) throws Exception {
+    // Haritada Çizilen Ölçümleri Export tuşu ile Sunucuya Kaydet
+    public String saveMeasurementData(String geoJsonData) throws Exception {
         java.io.File directory = new java.io.File(directoryPath);
 
         if (!directory.exists()) {
-            // Klasör yoksa işlemi durdur ve net bir hata fırlat
-            throw new java.io.FileNotFoundException("KRİTİK HATA: application.properties dosyasında belirtilen klasör yolu (" + directoryPath + ") bilgisayarında YOK! Lütfen önce bu klasörü oluştur.");
-        } else {
-            // Klasör varsa yazma işlemine geç
-            java.nio.file.Path path = java.nio.file.Paths.get(directoryPath + "/harita_olcumleri.json");
-            java.nio.file.Files.write(path, geoJsonData.getBytes());
+            throw new java.io.FileNotFoundException("KRİTİK HATA: application.properties dosyasında belirtilen klasör yolu (" + directoryPath + ") bilgisayarında YOK!");
         }
+
+        // Temel dosya adımız
+        String baseName = "harita_olcumleri";
+        String extension = ".json";
+        String fileName = baseName + extension;
+
+        java.nio.file.Path path = java.nio.file.Paths.get(directoryPath + "/" + fileName);
+
+        // Eğer dosya zaten varsa, sayacı 2'den başlatarak boş isim bulana kadar artır
+        int counter = 2;
+        while (java.nio.file.Files.exists(path)) {
+            fileName = baseName + "_" + counter + extension;
+            path = java.nio.file.Paths.get(directoryPath + "/" + fileName);
+            counter++;
+        }
+
+        // Boş ismi buldu, dosyayı yaz
+        java.nio.file.Files.write(path, geoJsonData.getBytes());
+
+        // Oluşan yeni dosya adını (örneğin: harita_olcumleri_3.json) geri döndür
+        return fileName;
     }
 }
