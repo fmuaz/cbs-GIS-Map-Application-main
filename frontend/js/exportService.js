@@ -32,7 +32,16 @@ const ExportService = {
             return;
         }
 
-        // 1. Havuzdaki çizimleri GeoJSON formatına çevir VE STİLLERİ (Renk, Çizgi vb.) KAYDET
+        // 🔥 1. YENİ EKLENEN KISIM: Kullanıcıya Grup Adını Soruyoruz
+        const grupAdi = prompt("Bu çalışmayı hangi isimle kaydetmek istersiniz?", "Yeni Çalışma");
+
+        // Eğer kullanıcı 'İptal'e basarsa veya boş bırakırsa işlemi durdur
+        if (!grupAdi || grupAdi.trim() === "") {
+            alert("Kayıt işlemi iptal edildi veya geçerli bir grup ismi girilmedi.");
+            return; 
+        }
+
+        // 2. Havuzdaki çizimleri GeoJSON formatına çevir VE STİLLERİ (Renk, Çizgi vb.) KAYDET
         const features = [];
         this.globalMeasureFolder.eachLayer(function (layer) {
             // Eğer layer bir grupsa (distanceTool veya areaTool genelde grup atar), içindekileri dön
@@ -41,6 +50,10 @@ const ExportService = {
                     const feature = subLayer.toGeoJSON();
                     feature.properties = feature.properties || {};
                     
+                    // Çizilen her bir şeklin (feature) içine grup adını mühürlüyoruz!
+                    feature.properties.grupAdi = grupAdi.trim();
+                    feature.properties.exportId = this.exportCounter;
+
                     // Leaflet'teki Çizgi, Renk ve Stil ayarlarını GeoJSON properties içine göm
                     if (subLayer.options) {
                         if (subLayer.options.color) feature.properties.color = subLayer.options.color;
@@ -74,16 +87,17 @@ const ExportService = {
             features: features
         };
 
-        // 2. Sayaç ve Tarih metadatalarını güncelle
+        // 3. Sayaç ve Tarih metadatalarını güncelle
         this.exportCounter++;
         this.lastExportDate = new Date().toISOString();
 
-        // 3. Bu metadataları paketin içine gizlice göm
+        // 4. Bu metadataları paketin içine gizlice göm
         geojsonData.properties = {
             ...geojsonData.properties,
             exportId: this.exportCounter,
             exportDate: this.lastExportDate,
-            creator: "Fatih Muaz" // Backend'e kimin oluşturduğu bilgisi de gitsin
+            creator: "Fatih Muaz", // Backend'e kimin oluşturduğu bilgisi de gitsin
+            grupAdi: grupAdi.trim() // Ana pakete de grup adını ekleyelim garanti olsun
         };
 
         // Loading ekranını aç
@@ -92,8 +106,8 @@ const ExportService = {
         // Veriyi Backend'e POST at
         window.ApiService.saveMeasurements(geojsonData)
             .then(savedFileName => {
-                // Sadece basit bir alert yerine detaylı bir bilgilendirme
-                alert(`✅ Ölçümleriniz başarıyla kaydedildi!\n📄 Dosya Adı: ${savedFileName}`);
+                // Başarı mesajını kullanıcının verdiği isme göre özelleştirdik
+                alert(`✅ Harika! "${grupAdi.trim()}" isimli çalışmanız başarıyla veritabanına kaydedildi! 🚀`);
             })
             .catch(err => {
                 alert("Sunucuya Bağlanılamadı! Backend Ayakta Mı?\nHata Detayı: " + err.message);

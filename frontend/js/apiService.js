@@ -10,15 +10,18 @@ const ApiService = {
             });
     },
 
-    fetchMeasurementList: async function() {
-        const response = await fetch('/api/geo/getMeasurementList');
-        if (!response.ok) throw new Error("Kayıtlı ölçüm listesi alınamadı!");
+    // Veritabanındaki kayıtlı Grup İsimlerini listeler
+    fetchGroupList: async function() {
+        const response = await fetch(`${this.baseUrl}/getGroupList`);
+        if (!response.ok) throw new Error("Kayıtlı grup listesi alınamadı!");
         return await response.json();
     },
 
-    fetchMeasurementById: async function(exportId) {
-        const response = await fetch(`/api/geo/getMeasurement/${exportId}`);
-        if (!response.ok) throw new Error("Ölçüm verisi veritabanından çekilemedi!");
+    // Seçilen Grup Adına ait verileri veritabanından GeoJSON paketi olarak çeker
+    fetchGroupByName: async function(grupAdi) {
+        // İsimde boşluk veya Türkçe karakter olma ihtimaline karşı encodeURIComponent kullanıyoruz
+        const response = await fetch(`${this.baseUrl}/getGroup/${encodeURIComponent(grupAdi)}`);
+        if (!response.ok) throw new Error("Grup verisi veritabanından çekilemedi!");
         return await response.json();
     },
 

@@ -27,6 +27,26 @@ window.addEventListener('DOMContentLoaded', () => {
         window.MiniMapManager.init(map);
     }
 
+    // Sayfa yüklendiğinde veritabanındaki kayıtlı ölçümleri otomatik getir ve haritaya çiz
+    async function loadSavedMeasurementsFromDatabase() {
+        try {
+            // YENİ: ID yerine Grup Listesini çekiyoruz
+            const groupNames = await ApiService.fetchGroupList();
+            if (groupNames && groupNames.length > 0) {
+                for (const groupName of groupNames) {
+                    // YENİ: ID yerine Grup Adına göre veriyi çekiyoruz
+                    const geoJsonData = await ApiService.fetchGroupByName(groupName);
+                    
+                    // Haritaya çizerken artık "Kayıt #1" yerine "Ankara Keşfi" gibi grubun adını yazacak
+                    MapManager.renderLayer(groupName, geoJsonData);
+                }
+                console.log("Veritabanındaki tüm grup katmanları başarıyla haritaya yüklendi! 🚀");
+            }
+        } catch (e) {
+            console.error("Veritabanından grup katmanları yüklenirken hata oluştu:", e);
+        }
+    }
+
     const zoomInBtn = document.getElementById('btn-zoom-in');
     const zoomOutBtn = document.getElementById('btn-zoom-out');
     
@@ -73,11 +93,10 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function loadLayerController(fileName) {
-        if (uploadedFileSet.has(fileName)) {
-            alert(window.APP_MESSAGES.LAYER_ALREADY_LOADED(fileName));
-            focusLayerController(fileName); 
-            // YAMA 1: Dosya zaten yüklüyse ekranı açık unutmaması için kapat!
+    function loadGroupController(grupAdi) {
+        if (uploadedFileSet.has(grupAdi)) {
+            alert(window.APP_MESSAGES?.LAYER_ALREADY_LOADED ? window.APP_MESSAGES.LAYER_ALREADY_LOADED(grupAdi) : "Bu katman zaten yüklü!");
+            focusLayerController(grupAdi); 
             if (window.LoadingManager) window.LoadingManager.hide();
             return; 
         }
@@ -85,8 +104,8 @@ window.addEventListener('DOMContentLoaded', () => {
         // İŞLEM BAŞLADI: Loading Ekranını Aç
         if (window.LoadingManager) window.LoadingManager.show();
 
-        // Backend'e istek atarak dosyayı çek (GARSON MUTFAĞA GİDİYOR)
-        ApiService.fetchGeoJson(fileName)
+        // Artık fetchGeoJson değil, fetchGroupByName kullanıyoruz!
+        ApiService.fetchGroupByName(grupAdi)
             .then(incomingModel => {
                 setTimeout(() => {
                     try {
@@ -244,7 +263,7 @@ window.addEventListener('DOMContentLoaded', () => {
                         uploadedFileSet.add(fileName);
 
                         Sidebar.appendLayerCard(
-                            fileName, pointCount, lineCount, polygonCount, 
+                            grupAdi, pointCount, lineCount, polygonCount, 
                             toggleLayerVisibility, deleteLayerController, focusLayerController
                         );
 
@@ -267,29 +286,46 @@ window.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // Gizli dosya seçici elementin değişim olayını dinliyoruz
-    document.getElementById('hiddenFileSelector').addEventListener('change', (e) => {
-        if (e.target.files.length === 0) return;
-        const fileObject = e.target.files[0]; 
-        const fileName = fileObject.name;
-
-        if (window.LoadingManager) window.LoadingManager.show();
-
-        // ARTIK İSTİSNA YOK: Ne yüklenirse yüklensin Java'ya gönderilecek!
-        ApiService.uploadGeoJson(fileObject)
-            .then(message => {
-                console.log("Backend Yanıtı: ", message);
-                // Upload başarılıysa sunucudan çekip haritaya bas
-                loadLayerController(fileName);
-            })
-            .catch(err => {
+    // İçe Aktar (Add Layer) Butonuna Tıklandığında Çalışacak Veritabanı Menüsü
+    const addLayerBtn = document.getElementById('addLayerBtn'); // Kendi HTML'indeki butonun ID'sini buraya yaz!
+    
+    if(addLayerBtn) {
+        addLayerBtn.addEventListener('click', async (e) => {
+            e.preventDefault(); // Eğer butonsa varsayılan tıklamayı durdur
+            
+            if (window.LoadingManager) window.LoadingManager.show();
+            
+            try {
+                // 1. Backend'den Grup İsimlerini Çek
+                const groups = await ApiService.fetchGroupList();
                 if (window.LoadingManager) window.LoadingManager.hide();
-                alert("Sunucuya Bağlanılamadı! Backend Ayakta Mı? Hata: " + err.message);
-            })
-            .finally(() => {
-                e.target.value = ''; // Input'u sıfırla
-                // Yükleme (upload) aşaması bittiğinde, çekme (fetch) aşaması başlarken
-                // loading ekranının açık kalmasını loadLayerController devralır.
-            });
-    });
+
+                if (!groups || groups.length === 0) {
+                    alert("Veritabanında kayıtlı hiçbir çalışma/grup bulunamadı.");
+                    return;
+                }
+
+                // 2. Kullanıcıya şık bir menü (şimdilik prompt ile) sunarak seçtir
+                let promptText = "Yüklemek istediğiniz çalışmanın NUMARASINI girin:\n\n";
+                groups.forEach((g, i) => promptText += `${i + 1} - ${g}\n`);
+                
+                const secim = prompt(promptText);
+                if (!secim) return; // Kullanıcı iptale bastı
+
+                const index = parseInt(secim) - 1;
+                
+                // 3. Seçilen grubu haritaya yükle
+                if (index >= 0 && index < groups.length) {
+                    const secilenGrupAdi = groups[index];
+                    loadGroupController(secilenGrupAdi);
+                } else {
+                    alert("Geçersiz bir numara girdiniz!");
+                }
+
+            } catch (err) {
+                if (window.LoadingManager) window.LoadingManager.hide();
+                alert("Kayıtlı gruplar çekilirken bir hata oluştu: " + err.message);
+            }
+        });
+    }
 });

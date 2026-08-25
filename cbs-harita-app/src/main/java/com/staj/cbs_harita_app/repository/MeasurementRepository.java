@@ -10,6 +10,9 @@ import java.util.List;
 public interface MeasurementRepository extends JpaRepository<MeasurementEntity, Long> {
     List<MeasurementEntity> findByExportId(Integer exportId);
 
+    // Grup adına göre tüm çizimleri getirir
+    List<MeasurementEntity> findByGrupAdi(String grupAdi);
+
     // Aga Spring Boot o kadar zeki ki; kaydetme (save), silme (delete) ve hepsini getirme (findAll)
     // gibi temel komutları bu satır sayesinde otomatik olarak arka planda yazdı bile!
 

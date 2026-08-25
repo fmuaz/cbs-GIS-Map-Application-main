@@ -104,6 +104,10 @@ public class GeoJsonService {
                     Map<String, Object> propertiesMap = objectMapper.convertValue(propertiesNode, Map.class);
                     entity.setProperties(propertiesMap);
 
+                    if (propertiesMap.containsKey("grupAdi")) {
+                        entity.setGrupAdi(propertiesMap.get("grupAdi").toString());
+                    }
+
                     if (propertiesMap.containsKey("exportId")) {
                         entity.setExportId(Integer.parseInt(propertiesMap.get("exportId").toString()));
                     }
@@ -120,18 +124,50 @@ public class GeoJsonService {
         return savedCount + " adet çizim/ölçüm doğrudan veritabanına (PostGIS) kaydedildi! 🚀";
     }
 
-    // Veritabanındaki kayıtlı ölçüm gruplarının listesini döner (Sidebar'da listeletmek için)
-    public List<Integer> getAllMeasurementExportIds() {
+    private Geometry parseGeometry(String type, JsonNode coordsNode) {
+        try {
+            if ("Point".equalsIgnoreCase(type)) {
+                double lng = coordsNode.get(0).asDouble();
+                double lat = coordsNode.get(1).asDouble();
+                return geometryFactory.createPoint(new Coordinate(lng, lat));
+            }
+            else if ("LineString".equalsIgnoreCase(type)) {
+                Coordinate[] coords = new Coordinate[coordsNode.size()];
+                for (int i = 0; i < coordsNode.size(); i++) {
+                    double lng = coordsNode.get(i).get(0).asDouble();
+                    double lat = coordsNode.get(i).get(1).asDouble();
+                    coords[i] = new Coordinate(lng, lat);
+                }
+                return geometryFactory.createLineString(coords);
+            }
+            else if ("Polygon".equalsIgnoreCase(type)) {
+                JsonNode ringNode = coordsNode.get(0);
+                Coordinate[] coords = new Coordinate[ringNode.size()];
+                for (int i = 0; i < ringNode.size(); i++) {
+                    double lng = ringNode.get(i).get(0).asDouble();
+                    double lat = ringNode.get(i).get(1).asDouble();
+                    coords[i] = new Coordinate(lng, lat);
+                }
+                return geometryFactory.createPolygon(coords);
+            }
+        } catch (Exception e) {
+            System.err.println("Geometri çözümlenirken hata oluştu: " + e.getMessage());
+        }
+        return null;
+    }
+
+    // Veritabanındaki benzersiz Grup İsimlerinin listesini döner
+    public List<String> getAllGroupNames() {
         return repository.findAll().stream()
-                .map(MeasurementEntity::getExportId)
+                .map(MeasurementEntity::getGrupAdi)
                 .filter(java.util.Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
     }
 
-    // Belirli bir exportId'ye ait verileri veritabanından çekip GeoJSON modeline çevirir
-    public GeoJsonModel getMeasurementByExportId(Integer exportId) throws Exception {
-        List<MeasurementEntity> entities = repository.findByExportId(exportId);
+    // Seçilen Grup Adına ait tüm verileri veritabanından çekip tek bir GeoJSON paketi yapar
+    public GeoJsonModel getMeasurementsByGroupName(String grupAdi) throws Exception {
+        List<MeasurementEntity> entities = repository.findByGrupAdi(grupAdi);
 
         GeoJsonModel model = new GeoJsonModel();
         List<GeoJsonModel.Feature> features = new java.util.ArrayList<>();
@@ -172,37 +208,5 @@ public class GeoJsonService {
 
         model.setFeatures(features);
         return model;
-    }
-
-    private Geometry parseGeometry(String type, JsonNode coordsNode) {
-        try {
-            if ("Point".equalsIgnoreCase(type)) {
-                double lng = coordsNode.get(0).asDouble();
-                double lat = coordsNode.get(1).asDouble();
-                return geometryFactory.createPoint(new Coordinate(lng, lat));
-            }
-            else if ("LineString".equalsIgnoreCase(type)) {
-                Coordinate[] coords = new Coordinate[coordsNode.size()];
-                for (int i = 0; i < coordsNode.size(); i++) {
-                    double lng = coordsNode.get(i).get(0).asDouble();
-                    double lat = coordsNode.get(i).get(1).asDouble();
-                    coords[i] = new Coordinate(lng, lat);
-                }
-                return geometryFactory.createLineString(coords);
-            }
-            else if ("Polygon".equalsIgnoreCase(type)) {
-                JsonNode ringNode = coordsNode.get(0);
-                Coordinate[] coords = new Coordinate[ringNode.size()];
-                for (int i = 0; i < ringNode.size(); i++) {
-                    double lng = ringNode.get(i).get(0).asDouble();
-                    double lat = ringNode.get(i).get(1).asDouble();
-                    coords[i] = new Coordinate(lng, lat);
-                }
-                return geometryFactory.createPolygon(coords);
-            }
-        } catch (Exception e) {
-            System.err.println("Geometri çözümlenirken hata oluştu: " + e.getMessage());
-        }
-        return null;
     }
 }

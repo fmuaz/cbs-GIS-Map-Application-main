@@ -24,7 +24,6 @@ public class GeoJsonController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Kötü istek "+e.getMessage());
         }
-
     }
 
     @GetMapping("/getDataPath")
@@ -69,20 +68,20 @@ public class GeoJsonController {
         }
     }
 
-    @GetMapping("/getMeasurementList")
-    public org.springframework.http.ResponseEntity<List<Integer>> getMeasurementList() {
+    @GetMapping("/getGroupList")
+    public org.springframework.http.ResponseEntity<List<String>> getGroupList() {
         try {
-            List<Integer> ids = geoJsonService.getAllMeasurementExportIds();
-            return org.springframework.http.ResponseEntity.ok(ids);
+            List<String> groups = geoJsonService.getAllGroupNames();
+            return org.springframework.http.ResponseEntity.ok(groups);
         } catch (Exception e) {
             return org.springframework.http.ResponseEntity.internalServerError().build();
         }
     }
 
-    @GetMapping("/getMeasurement/{exportId}")
-    public org.springframework.http.ResponseEntity<GeoJsonModel> getMeasurementById(@PathVariable Integer exportId) {
+    @GetMapping("/getGroup/{grupAdi}")
+    public org.springframework.http.ResponseEntity<GeoJsonModel> getGroupByName(@PathVariable String grupAdi) {
         try {
-            GeoJsonModel model = geoJsonService.getMeasurementByExportId(exportId);
+            GeoJsonModel model = geoJsonService.getMeasurementsByGroupName(grupAdi);
             return org.springframework.http.ResponseEntity.ok(model);
         } catch (Exception e) {
             return org.springframework.http.ResponseEntity.internalServerError().build();

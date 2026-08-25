@@ -27,6 +27,9 @@ public class MeasurementEntity {
     @Column(name = "geometri_verisi", columnDefinition = "geometry")
     private Geometry geometry;
 
+    @Column(name = "grup_adi")
+    private String grupAdi;
+
     // Renkler labellar ve ekstra veriler için esnek JSONB kolonu
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ozellikler", columnDefinition = "jsonb")
@@ -100,5 +103,13 @@ public class MeasurementEntity {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getGrupAdi() {
+        return grupAdi;
+    }
+
+    public void setGrupAdi(String grupAdi) {
+        this.grupAdi = grupAdi;
     }
 }
