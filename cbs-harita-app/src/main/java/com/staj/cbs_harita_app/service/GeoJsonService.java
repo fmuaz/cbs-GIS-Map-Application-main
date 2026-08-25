@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class GeoJsonService {
-    
-    private GeoJsonModel geoJsonModel; // Ram'de tutulacak veri
+
+    // UYARI 1 ÇÖZÜMÜ: Sınıf seviyesindeki geoJsonModel değişkenini sildik.
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${map.data.path}")
@@ -25,7 +25,7 @@ public class GeoJsonService {
 
     public GeoJsonModel getGeoJsonModel(String fileName) throws Exception {
         if (fileName.contains("..")) throw new SecurityException("Zafiyet algılandı!");
-        
+
         String filePath = directoryPath + "/" + fileName;
         File file = new File(filePath);
 
@@ -38,13 +38,15 @@ public class GeoJsonService {
         }
 
         try (InputStream inputStream = new FileInputStream(file)) {
-            this.geoJsonModel = objectMapper.readValue(inputStream, GeoJsonModel.class);
-            return this.geoJsonModel;
+            // Veriyi sınıf değişkenine değil, sadece bu metodun içinde yaşayan "lokal" bir değişkene atıyoruz
+            GeoJsonModel model = objectMapper.readValue(inputStream, GeoJsonModel.class);
+            return model;
         } catch (IOException e) {
             throw new IOException("JSON verisi modele dönüştürülürken hata oluştu..." + e.getMessage());
         }
     }
 
+    // UYARI 2 İÇİN: Lombok kullanmadığımız için manuel yazılan metodumuz kalıyor.
     public String getDirectoryPath() {
         return this.directoryPath;
     }
@@ -52,10 +54,15 @@ public class GeoJsonService {
     // Dışarıdan Yüklenen Dosyayı Klasöre Kaydet
     public void saveFile(MultipartFile file) throws Exception {
         if (file.isEmpty()) throw new IllegalArgumentException("Boş dosya yüklenemez.");
-        
+
+        // KLASÖR KONTROLÜ
+        java.io.File directory = new java.io.File(directoryPath);
+        if (!directory.exists()) {
+            throw new java.io.FileNotFoundException("KRİTİK HATA: application.properties dosyasında belirtilen klasör (" + directoryPath + ") bilgisayarında YOK! Lütfen önce bu klasörü oluştur.");
+        }
         String fileName = file.getOriginalFilename();
         if (fileName == null || fileName.contains("..")) throw new SecurityException("Zafiyet algılandı!");
-        
+
         Path path = Paths.get(directoryPath + "/" + fileName);
         Files.write(path, file.getBytes());
     }
@@ -64,16 +71,24 @@ public class GeoJsonService {
     public List<String> getAllGeoJsonFiles() {
         File dir = new File(directoryPath);
         if (!dir.exists() || !dir.isDirectory()) return List.of();
-        
+
         File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".json") || name.toLowerCase().endsWith(".geojson"));
         if (files == null) return List.of();
-        
+
         return Arrays.stream(files).map(File::getName).collect(Collectors.toList());
     }
 
     // Haritada Çizilen Ölçümleri (Export) Sunucuya Kaydet
     public void saveMeasurementData(String geoJsonData) throws Exception {
-        Path path = Paths.get(directoryPath + "/harita_olcumleri.json");
-        Files.write(path, geoJsonData.getBytes());
+        java.io.File directory = new java.io.File(directoryPath);
+
+        if (!directory.exists()) {
+            // Klasör yoksa işlemi durdur ve net bir hata fırlat
+            throw new java.io.FileNotFoundException("KRİTİK HATA: application.properties dosyasında belirtilen klasör yolu (" + directoryPath + ") bilgisayarında YOK! Lütfen önce bu klasörü oluştur.");
+        } else {
+            // Klasör varsa yazma işlemine geç
+            java.nio.file.Path path = java.nio.file.Paths.get(directoryPath + "/harita_olcumleri.json");
+            java.nio.file.Files.write(path, geoJsonData.getBytes());
+        }
     }
 }

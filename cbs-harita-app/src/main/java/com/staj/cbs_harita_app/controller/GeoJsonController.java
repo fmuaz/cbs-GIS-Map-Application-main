@@ -30,7 +30,6 @@ public class GeoJsonController {
     @GetMapping("/getDataPath")
     public ResponseEntity<String> getDataPath() {
         // Service içindeki directoryPath değişkenine erişmek için doğrudan oradan çekiyoruz
-        // Eğer directoryPath service içinde private ise public bir getter yazabilir veya direkt buraya @Value ile de enjekte edebiliriz
         return ResponseEntity.ok(geoJsonService.getDirectoryPath());
     }
 
@@ -58,10 +57,11 @@ public class GeoJsonController {
 
     // 3. Çizilen ölçümleri kaydetme (Export/Save)
     @PostMapping("/saveMeasurements")
-    public ResponseEntity<?> saveMeasurements(@RequestBody com.staj.cbs_harita_app.model.GeoJsonModel geoJsonData) {
+    public ResponseEntity<?> saveMeasurements(@RequestBody java.util.Map<String, Object> geoJsonData) {
         try {
-            // Şimdilik gelen modeli JSON string'e çevirip kaydedelim veya direkt servise yollayalım
+            // Frontend'den gelen esnek veriyi (Map) tekrar JSON Metnine (String) çevir
             String jsonString = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(geoJsonData);
+            // Servise gönder ve dosyaya yaz
             geoJsonService.saveMeasurementData(jsonString);
             return ResponseEntity.ok("Ölçümler başarıyla sunucuya kaydedildi.");
         } catch (Exception e) {
