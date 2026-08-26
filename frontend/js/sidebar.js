@@ -85,28 +85,25 @@ const Sidebar = {
             const safeId = item.fileName.replace(/[^a-zA-Z0-9]/g, '_');
             
             const cardHtml = `
-                <div class="layer-item" id="card_${safeId}" style="margin-bottom: 10px; position: relative; opacity: ${item.isHidden ? '0.5' : '1'};">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <div class="layer-title" id="title_${safeId}" style="margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; cursor: pointer; transition: color 0.2s; color: #084298;" title="Click to focus layer camera">
-                            📄 ${item.fileName}
+                <div class="layer-item" id="card_${safeId}" style="margin-bottom: 15px; padding: 15px; background-color: #ffffff; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-left: 5px solid #0d6efd; position: relative; opacity: ${item.isHidden ? '0.5' : '1'}; transition: all 0.3s ease;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px;">
+                        <div class="layer-title" id="title_${safeId}" style="margin: 0; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; cursor: pointer; transition: color 0.2s; color: #2c3e50;" title="Kamerayı bu katmana odakla">
+                            📁 ${item.fileName}
                         </div>
-                        <div style="display: flex; gap: 4px; align-items: center;">
-                            
-                            <!-- 🔥 ISI HARİTASI (HEATMAP) BUTONU BURAYA EKLENDİ 🔥 -->
-                            <button id="heat_${safeId}" title="Isı Haritası Modu" style="background: none; border: none; cursor: pointer; font-size: 16px; margin-right: 5px; transition: transform 0.2s;">🔥</button>
-
-                            <button id="toggle_${safeId}" style="background: none; border: none; font-size: 15px; cursor: pointer; padding: 4px;" title="Toggle Visibility">
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button id="heat_${safeId}" title="Isı Haritası Modu" style="background: #fff3cd; color: #ffc107; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; padding: 4px 6px; transition: all 0.2s;">🔥</button>
+                            <button id="toggle_${safeId}" style="background: #e2e3e5; color: #41464b; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; padding: 4px 6px;" title="Görünürlüğü Aç/Kapat">
                                 ${item.isHidden ? '🙈' : '👁️'}
                             </button>
-                            <button id="delete_${safeId}" style="background: none; border: none; font-size: 15px; cursor: pointer; padding: 4px; color: #dc3545;" title="Delete Layer">
+                            <button id="delete_${safeId}" style="background: #f8d7da; color: #dc3545; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; padding: 4px 6px;" title="Katmanı Sil">
                                 🗑️
                             </button>
                         </div>
                     </div>
-                    <table class="analysis-table">
-                        <tr><td>⚫ Point Features</td><td>${item.pointCount} pcs</td></tr>
-                        <tr><td>🔀 Line Features</td><td>${item.lineCount} pcs</td></tr>
-                        <tr><td>🟩 Polygon Features</td><td>${item.polygonCount} pcs</td></tr>
+                    <table class="analysis-table" style="width: 100%; font-size: 12px; color: #555;">
+                        <tr><td style="padding: 3px 0;">⚫ Point Features</td><td style="text-align: right; font-weight: bold;">${item.pointCount} pcs</td></tr>
+                        <tr><td style="padding: 3px 0;">🔀 Line Features</td><td style="text-align: right; font-weight: bold;">${item.lineCount} pcs</td></tr>
+                        <tr><td style="padding: 3px 0;">🟩 Polygon Features</td><td style="text-align: right; font-weight: bold;">${item.polygonCount} pcs</td></tr>
                     </table>
                 </div>
             `;
@@ -122,7 +119,7 @@ const Sidebar = {
             const titleEl = document.getElementById(`title_${safeId}`);
             const cardEl = document.getElementById(`card_${safeId}`);
             
-            // 🔥 ISI HARİTASI OLAY DİNLEYİCİSİ 🔥
+            // ISI HARİTASI event listener
             const heatBtn = document.getElementById(`heat_${safeId}`);
 
             if (heatBtn) {

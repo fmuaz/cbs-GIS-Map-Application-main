@@ -214,6 +214,18 @@ window.addEventListener('DOMContentLoaded', () => {
                                 layer.bindPopup(linePopupHtml, { maxWidth: 250 });
                             }
 
+                            // POPUP VE TIKLAMA (FOCUS) ETKİLEŞİMLERİ
+                            layer.on('click', (e) => {
+                                // Tıklanan obje bir nokta ise direkt o koordinata uç
+                                if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+                                    map.flyTo(layer.getLatLng(), 16, { duration: 1.2, easeLinearity: 0.25 });
+                                } 
+                                // Tıklanan obje çokgen veya çizgi ise onun sınırlarını kaplayacak şekilde uç
+                                else if (layer.getBounds) {
+                                    map.flyToBounds(layer.getBounds(), { padding: [50, 50], duration: 1.2, easeLinearity: 0.25 });
+                                }
+                            });
+
                             // POPUP ETKİLEŞİMLERİ (Silme ve Metadata)
                             layer.on('popupopen', () => {
                                 document.getElementById(currentId)?.addEventListener('click', () => { restoredLayer.removeLayer(layer); });
@@ -230,6 +242,11 @@ window.addEventListener('DOMContentLoaded', () => {
                             grupAdi, pointCount, lineCount, polygonCount, 
                             toggleLayerVisibility, deleteLayerController, focusLayerController
                         );
+
+                        // Katman haritaya eklendiği an kamerayı oraya uçur
+                        if (restoredLayer && Object.keys(restoredLayer._layers).length > 0) {
+                            MapManager.flyToLayerBounds(restoredLayer);
+                        }
 
                         if (window.LoadingManager) window.LoadingManager.hide();
 
@@ -250,21 +267,18 @@ window.addEventListener('DOMContentLoaded', () => {
     
     if(addLayerBtn) {
         addLayerBtn.addEventListener('click', async (e) => {
-            e.preventDefault(); // Eğer butonsa varsayılan tıklamayı durdur
-            
-            if (window.LoadingManager) window.LoadingManager.show();
+            e.preventDefault(); 
             
             try {
-                // 1. Backend'den Grup İsimlerini Çek
+                // 1. Backend'den Grup İsimlerini Çek (Burada loading'e gerek yok, anında gelir)
                 const groups = await ApiService.fetchGroupList();
-                if (window.LoadingManager) window.LoadingManager.hide();
 
                 if (!groups || groups.length === 0) {
                     alert("Veritabanında kayıtlı hiçbir çalışma/grup bulunamadı.");
                     return;
                 }
 
-                // 2. Kullanıcıya şık bir menü (şimdilik prompt ile) sunarak seçtir
+                // 2. Kullanıcıya menüyü sun
                 let promptText = "Yüklemek istediğiniz çalışmanın NUMARASINI girin:\n\n";
                 groups.forEach((g, i) => promptText += `${i + 1} - ${g}\n`);
                 
@@ -276,13 +290,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 // 3. Seçilen grubu haritaya yükle
                 if (index >= 0 && index < groups.length) {
                     const secilenGrupAdi = groups[index];
+                    // Asıl ağır işlem burada başlıyor, Loading ekranı da zaten bu fonksiyonun içinde açılıyor!
                     loadGroupController(secilenGrupAdi);
                 } else {
                     alert("Geçersiz bir numara girdiniz!");
                 }
 
             } catch (err) {
-                if (window.LoadingManager) window.LoadingManager.hide();
                 alert("Kayıtlı gruplar çekilirken bir hata oluştu: " + err.message);
             }
         });

@@ -345,6 +345,22 @@
         #minimap-ui .leaflet-control-container {
             display: none !important;
         }
+
+        /* LOADING ANIMASYONU */
+        .spin-and-grow {
+            /* linear: hızı hiç değişmeden sabit döner.*/
+            animation: normalSpin 3.5s linear infinite;
+            transform-origin: center center;
+        }
+
+        @keyframes normalSpin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg); /* Sürekli sağa doğru tam tur döner */
+            }
+        }
     </style>
 </head>
 
@@ -361,7 +377,7 @@
         
         <!-- Senin Görselinin Bulunduğu Kapsayıcı (Floating Effect) -->
         <div class="loading-image-wrapper">
-            <img id="global-loading-image" class="loading-asset" src="" alt="">
+            <img id="global-loading-image" class="loading-asset spin-and-grow" src="" alt="">
         </div>
     </div>
 
@@ -418,7 +434,10 @@
             • Click a completed polygon or line to view its information and delete it.
         </div>
 
-        <button id="add-layer-btn" class="btn btn-primary">Import (Add Layer)</button>
+        <!-- Modern, dikkat çekici Import Butonu -->
+        <button id="add-layer-btn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #0d6efd, #0b5ed7); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; box-shadow: 0 4px 6px rgba(13, 110, 253, 0.3); transition: all 0.3s ease; margin-bottom: 20px;">
+            ➕ Import (Add Layer)
+        </button>
 
         <div class="uploaded-layers" id="layerList">
             <span id="emptyWarning" style="color:#888; font-size:13px; text-align:center; display: block; margin-top: 10px;">No layers added yet.</span>
