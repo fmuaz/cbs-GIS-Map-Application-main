@@ -32,7 +32,7 @@ const AreaTool = {
         this.map.on('contextmenu', (e) => {
             if (e.originalEvent) e.originalEvent.preventDefault();
 
-            // YENİ: Sadece Alan modundayken kapatma işlemini yap
+            // Sadece polyon modundayken kapatma işlemini yap
             if (window.StateManager && window.StateManager.activeTool === 'polygon' && this.polygonPoints.length >= 3) {
                 const turfCoordinates = this.polygonPoints.map(p => [p.lng, p.lat]);
                 turfCoordinates.push([this.polygonPoints[0].lng, this.polygonPoints[0].lat]); 
