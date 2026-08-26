@@ -46,7 +46,7 @@ const HeatmapManager = {
             const heat = L.heatLayer(points, {
                 radius: 20,
                 blur: 15,
-                maxZoom: 17,
+                maxZoom: 14,
                 gradient: {0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red'}
             }).addTo(this.map);
 
