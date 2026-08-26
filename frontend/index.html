@@ -5,33 +5,45 @@
     <title>GIS Map Application - Layer Management</title>
     <link rel="stylesheet" href="leaflet.css" />
     <style>
-        /* --- TEMEL ARAYÜZ --- */
+        /* =========================================
+           1. TEMEL ARAYÜZ VE HARİTA
+           ========================================= */
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; position: relative; width: 100vw; height: 100vh; }
         #map { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
         
-        /* --- SAĞ MENÜ (SIDEBAR) --- */
+        /* =========================================
+           2. SAĞ MENÜ (SIDEBAR) VE BUTONLAR
+           ========================================= */
         .menu-btn { position: absolute; top: 20px; right: 20px; z-index: 1000; background: #007bff; color: white; border: none; padding: 12px 16px; font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: background 0.2s; }
         .menu-btn:hover { background: #0056b3; }
+        
         .sidebar { position: absolute; top: 0; right: -340px; width: 320px; height: 100vh; background: rgba(255, 255, 255, 0.98); z-index: 1001; padding: 20px; box-shadow: -4px 0 15px rgba(0,0,0,0.2); transition: right 0.3s ease-in-out; box-sizing: border-box; display: flex; flex-direction: column; border-left: 1px solid #ddd; }
         .sidebar.open { right: 0; }
+        
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
         .sidebar-header h3 { margin: 0; color: #333; font-size: 18px; }
+        
         .close-btn { background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-weight: bold; }
+        
         .add-layer-btn { background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: background 0.2s; margin-bottom: 20px; width: 100%; }
         .add-layer-btn:hover { background: #218838; }
-        .info-box { background: #fff3cd; border: 1px solid #ffeba2; color: #664d03; padding: 10px; border-radius: 6px; font-size: 12px; margin-bottom: 20px; line-height: 1.4; }
-        .uploaded-layers { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 6px;}
-        .layer-item { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; }
-        .layer-title { font-weight: bold; color: #084298; font-size: 14px; margin-bottom: 6px; }
-        .analysis-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 5px; }
-        .analysis-table td { padding: 4px 0; color: #6c757d; }
-        .analysis-table td:last-child { text-align: right; font-weight: bold; color: #333; }
-        .measure-label { background: #dc3545; color: white; font-weight: bold; border: none; border-radius: 4px; padding: 3px 6px; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap; }
         
+        .info-box { background: #fff3cd; border: 1px solid #ffeba2; color: #664d03; padding: 10px; border-radius: 6px; font-size: 12px; margin-bottom: 20px; line-height: 1.4; }
+        
+        .uploaded-layers { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 6px;}
         .uploaded-layers::-webkit-scrollbar { width: 6px; }
         .uploaded-layers::-webkit-scrollbar-track { background: transparent; }
         .uploaded-layers::-webkit-scrollbar-thumb { background: #adb5bd; border-radius: 10px; }
         .uploaded-layers::-webkit-scrollbar-thumb:hover { background: #6c757d; }
+
+        .layer-item { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; }
+        .layer-title { font-weight: bold; color: #084298; font-size: 14px; margin-bottom: 6px; }
+        
+        .analysis-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 5px; }
+        .analysis-table td { padding: 4px 0; color: #6c757d; }
+        .analysis-table td:last-child { text-align: right; font-weight: bold; color: #333; }
+        
+        .measure-label { background: #dc3545; color: white; font-weight: bold; border: none; border-radius: 4px; padding: 3px 6px; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap; }
 
         /* --- KESİŞİM (INTERSECTION) ETİKETİ TASARIMI --- */
         .intersection-label {
@@ -41,7 +53,9 @@
             font-size: 11px; white-space: nowrap;
         }
 
-        /* --- YENİ NESİL PREMIUM HUD & TOOLBAR (GLASS EFFECT) --- */        
+        /* =========================================
+           3. TEMA YÖNETİMİ (LIGHT & DARK MODE TOKENS)
+           ========================================= */
         :root {
             /* LIGHT MODE TOKENS (Glass + Clean) */
             --tool-panel: rgba(255, 255, 255, 0.88);
@@ -61,7 +75,6 @@
         body.dark-mode {
             background-color: #121212;
             color: #e0e0e0;
-
             /* DARK MODE TOKENS (Glass + Cyber HUD) */
             --tool-panel: rgba(10, 15, 13, 0.78);
             --tool-panel-hover: rgba(20, 28, 24, 0.9);
@@ -98,31 +111,18 @@
         #themeToggleBtn { background-color: #121212 !important; color: #ffffff !important; }
         body.dark-mode #themeToggleBtn { background-color: #ffffff !important; color: #121212 !important; }
 
-        /* HUD Taşıyıcı Konteyner (Sol Üst Boşluklar) */
+        /* =========================================
+           4. YENİ NESİL PREMIUM HUD & TOOLBAR (GLASS EFFECT)
+           ========================================= */
         .hud-container {
-            position: absolute; 
-            top: 16px; 
-            left: 16px; 
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 12px; /* Zoom ve Tool arasındaki 12px boşluk */
+            position: absolute; top: 16px; left: 16px; z-index: 1000;
+            display: flex; flex-direction: column; gap: 12px;
         }
 
-        /* Ortak Panel Yapısı */
         .drawing-toolbar {
-            background: var(--tool-panel); 
-            padding: 6px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 4px;
-            border-radius: 12px; 
-            box-shadow: var(--tool-shadow); 
-            border: 1px solid var(--tool-border);
-            width: 52px;
-            box-sizing: border-box;
-            backdrop-filter: blur(10px); /* Kusursuz Glass efekti */
-            -webkit-backdrop-filter: blur(10px);
+            background: var(--tool-panel); padding: 6px; display: flex; flex-direction: column; gap: 4px;
+            border-radius: 12px; box-shadow: var(--tool-shadow); border: 1px solid var(--tool-border);
+            width: 52px; box-sizing: border-box; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
             transition: background 0.3s ease, border-color 0.3s ease;
         }
 
@@ -133,7 +133,6 @@
 
         .toolbar-divider { height: 1px; background: var(--tool-border); margin: 2px 0; width: 100%; }
 
-        /* Butonlar ve Hitbox */
         .tool-btn {
             position: relative; background: transparent; border: 1px solid transparent; 
             width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
@@ -142,283 +141,207 @@
         }
 
         .tool-btn svg { width: 22px; height: 22px; fill: currentColor; transition: fill 0.15s ease; }
-
-        /* Hover Animasyonu (Küçük ama kaliteli) */
         .tool-btn:hover { background: var(--tool-panel-hover); color: var(--tool-icon-hover); }
 
-        /* Seçili (Selected) State - İnce Accent Çizgisi */
-        .tool-btn.active { 
-            background: var(--tool-accent-soft); 
-            color: var(--tool-accent); 
-        }
-        
-        /* --- PASİF (DISABLED) BUTON DURUMU --- */
-        .tool-btn.disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-            color: var(--tool-icon) !important;
-        }
-        .tool-btn.disabled:hover {
-            background: transparent !important;
-            color: var(--tool-icon) !important;
-        }
-
+        .tool-btn.active { background: var(--tool-accent-soft); color: var(--tool-accent); }
         .tool-btn.active::before {
             content: ''; position: absolute; left: -6px; top: 15%; height: 70%; width: 2px;
             background: var(--tool-accent); border-radius: 0 4px 4px 0;
             box-shadow: 1px 0 6px var(--tool-accent-soft);
         }
 
-        /* --- TOOLTIP TASARIMI --- */
+        .tool-btn.disabled { opacity: 0.35; cursor: not-allowed; color: var(--tool-icon) !important; }
+        .tool-btn.disabled:hover { background: transparent !important; color: var(--tool-icon) !important; }
+
         .tool-tooltip {
             position: absolute; left: 56px; top: 50%; transform: translateY(-50%) translateX(-8px);
             background: var(--tooltip-bg); color: var(--tooltip-text); padding: 8px 12px;
             border-radius: 8px; font-size: 11px; font-weight: 500; white-space: nowrap;
             opacity: 0; pointer-events: none; box-shadow: var(--tool-shadow);
-            border: 1px solid var(--tool-border);
-            transition: opacity 0.15s ease, transform 0.15s ease; display: flex; align-items: center; gap: 10px;
+            border: 1px solid var(--tool-border); transition: opacity 0.15s ease, transform 0.15s ease; 
+            display: flex; align-items: center; gap: 10px;
         }
 
-        .tool-tooltip .shortcut {
-            background: rgba(128,128,128,0.15); padding: 3px 6px; border-radius: 4px;
-            font-size: 10px; font-weight: 700; color: var(--tool-text-muted);
-        }
-
+        .tool-tooltip .shortcut { background: rgba(128,128,128,0.15); padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: var(--tool-text-muted); }
         .tool-btn:hover .tool-tooltip { opacity: 1; transform: translateY(-50%) translateX(0); }
         
-        /* --- CONTEXTUAL FEEDBACK --- */
         #context-feedback {
             position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
             background: var(--tool-panel); color: var(--tool-text); border: 1px solid var(--tool-border);
             padding: 8px 16px; border-radius: 20px; font-size: 11px; font-weight: 600;
-            z-index: 1000; box-shadow: var(--tool-shadow); opacity: 0;
-            backdrop-filter: blur(10px);
+            z-index: 1000; box-shadow: var(--tool-shadow); opacity: 0; backdrop-filter: blur(10px);
             pointer-events: none; transition: opacity 0.2s ease;
         }
         #context-feedback.visible { opacity: 1; }
 
+        /* =========================================
+           5. LOADING OVERLAY VE ANİMASYONLAR
+           ========================================= */
         #global-loading-overlay {
-            position: fixed; inset: 0; z-index: 9999;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(12, 16, 14, 0.4); /* Çok hafif karanlık */
-            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), backdrop-filter 0.6s ease;
+            position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
+            background: rgba(12, 16, 14, 0.4); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            opacity: 0; pointer-events: none; transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), backdrop-filter 0.6s ease;
             overflow: hidden;
         }
+        #global-loading-overlay.visible { opacity: 1; pointer-events: all; }
+        body.dark-mode #global-loading-overlay { background: rgba(10, 15, 13, 0.85); }
 
-        /* Yükleme aktif olduğunda */
-        #global-loading-overlay.visible {
-            opacity: 1; 
-            pointer-events: all; 
-        }
-
-        /* 1. SİHİRLİ DOKUNUŞ: Sİnematik Kumlanma (Noise/Grain) Efekti */
         .loading-noise {
             position: absolute; inset: 0;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            opacity: 0.04; 
-            pointer-events: none;
+            opacity: 0.04; pointer-events: none;
         }
 
-        /* 2. SİHİRLİ DOKUNUŞ: Dinamik Ortam Işığı (Ambient Glow) */
         .ambient-glow {
-            position: absolute;
-            width: clamp(250px, 40vw, 500px);
-            height: clamp(250px, 40vw, 500px);
+            position: absolute; width: clamp(250px, 40vw, 500px); height: clamp(250px, 40vw, 500px);
             background: radial-gradient(circle, var(--tool-accent-soft) 0%, rgba(99, 255, 79, 0) 65%);
-            border-radius: 50%;
-            opacity: 0;
-            transform: scale(0.8);
-            transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-            pointer-events: none;
+            border-radius: 50%; opacity: 0; transform: scale(0.8);
+            transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1); pointer-events: none;
         }
+        #global-loading-overlay.visible .ambient-glow { opacity: 0.8; animation: breathe-glow 4s ease-in-out infinite alternate; }
+        @keyframes breathe-glow { 0% { transform: scale(0.85); opacity: 0.6; } 100% { transform: scale(1.15); opacity: 1; } }
 
-        /* Glow için yavaşça nefes alma animasyonu */
-        #global-loading-overlay.visible .ambient-glow {
-            opacity: 0.8;
-            animation: breathe-glow 4s ease-in-out infinite alternate;
-        }
-
-        @keyframes breathe-glow {
-            0% { transform: scale(0.85); opacity: 0.6; }
-            100% { transform: scale(1.15); opacity: 1; }
-        }
-
-        /* 3. SİHİRLİ DOKUNUŞ: Görselin Kendisi (Floating & Entrance) */
         .loading-image-wrapper {
-            position: relative;
-            z-index: 2;
-            opacity: 0;
-            transform: scale(0.9) translateY(15px);
-            transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-            transition-delay: 0.1s; /* Arka plandan hemen sonra gelsin */
+            position: relative; z-index: 2; opacity: 0; transform: scale(0.9) translateY(15px);
+            transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1); transition-delay: 0.1s;
         }
-
         #global-loading-overlay.visible .loading-image-wrapper {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-            animation: float-asset 4s ease-in-out infinite alternate;
-            animation-delay: 0.8s; /* Giriş animasyonu bitince süzülmeye başlasın */
+            opacity: 1; transform: scale(1) translateY(0);
+            animation: float-asset 4s ease-in-out infinite alternate; animation-delay: 0.8s;
         }
-
         .loading-asset {
-            width: 100%; height: auto;
-            object-fit: contain;
+            width: 100%; height: auto; object-fit: contain;
             filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.4));
+            animation: pulse-loader 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
         }
-
         @keyframes float-asset {
             0% { transform: translateY(0px); filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.4)); }
             100% { transform: translateY(-12px); filter: drop-shadow(0 25px 45px rgba(99, 255, 79, 0.2)); }
         }
-
-        /* 4. SİHİRLİ DOKUNUŞ: Hafif Işık Partikülleri (Particles) */
-        .loading-particles {
-            position: absolute; inset: 0; pointer-events: none;
-            background-image: 
-                radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px),
-                radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
-            background-size: 60px 60px, 90px 90px;
-            background-position: 0 0, 30px 30px;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 1s ease;
-        }
-
-        #global-loading-overlay.visible .loading-particles {
-            opacity: 1;
-            animation: rise-particles 20s linear infinite;
-        }
-
-        @keyframes rise-particles {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-200px); }
-        }
-
-        body.dark-mode #global-loading-overlay {
-            background: rgba(10, 15, 13, 0.85); /* Dark mode cam arka plan */
-        }
-
-        /* Merkezdeki asset için tatlı ve hafif bir nefes alma (pulse) efekti */
-        .loading-asset {
-            animation: pulse-loader 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));
-        }
-
         @keyframes pulse-loader {
             0% { transform: scale(0.92); opacity: 0.8; }
             100% { transform: scale(1.08); opacity: 1; }
         }
 
-        /* --- AAA PREMIUM MINI-MAP (RADAR) --- */
+        .loading-particles {
+            position: absolute; inset: 0; pointer-events: none;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px), radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 60px 60px, 90px 90px; background-position: 0 0, 30px 30px;
+            opacity: 0; transform: translateY(20px); transition: opacity 1s ease;
+        }
+        #global-loading-overlay.visible .loading-particles { opacity: 1; animation: rise-particles 20s linear infinite; }
+        @keyframes rise-particles { 0% { transform: translateY(0); } 100% { transform: translateY(-200px); } }
+
+        .spin-and-grow { animation: normalSpin 3.5s linear infinite; transform-origin: center center; }
+        @keyframes normalSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* =========================================
+           6. CUSTOM MODAL (ÇALIŞMA SEÇ)
+           ========================================= */
+        .custom-modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; opacity: 0; animation: fadeIn 0.2s forwards;
+        }
+
+        .custom-modal {
+            background: var(--bg-color, #ffffff); color: var(--text-color, #2c3e50);
+            width: 90%; max-width: 550px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; overflow: hidden;
+            border: 1px solid var(--border-color, #e0e0e0);
+            transform: translateY(20px); animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .custom-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 20px 24px; border-bottom: 1px solid var(--border-color, #eee);
+        }
+        .modal-title { margin: 0; font-size: 18px; font-weight: 700; }
+        .modal-subtitle { margin: 5px 0 0; font-size: 13px; color: var(--text-muted, #6c757d); }
+
+        .modal-close-btn { background: transparent; border: none; font-size: 24px; color: var(--text-muted, #999); cursor: pointer; transition: color 0.2s; }
+        .modal-close-btn:hover { color: #dc3545; }
+
+        .custom-modal-search { padding: 15px 24px; background: var(--bg-light, #f8f9fa); }
+        .custom-modal-search input {
+            width: 100%; padding: 10px 15px; border-radius: 6px; font-size: 14px;
+            border: 1px solid var(--border-color, #ccc); background: var(--input-bg, #fff);
+            color: var(--text-color, #333); outline: none; transition: border-color 0.2s; box-sizing: border-box;
+        }
+        .custom-modal-search input:focus { border-color: #0d6efd; }
+
+        .custom-modal-list {
+            max-height: 350px; overflow-y: auto; padding: 10px 24px;
+            scrollbar-width: thin; scrollbar-color: #ccc transparent;
+        }
+        .custom-modal-list::-webkit-scrollbar { width: 6px; }
+        .custom-modal-list::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 10px; }
+
+        .group-list-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; margin-bottom: 8px; border-radius: 8px;
+            background: var(--card-bg, #ffffff); border: 1px solid var(--border-color, #eaeaea);
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .group-list-item:hover { border-color: #0d6efd; background: var(--card-hover-bg, #f0f7ff); transform: translateY(-1px); box-shadow: 0 4px 8px rgba(13, 110, 253, 0.08); }
+        .group-list-item:hover .group-arrow { transform: translateX(3px); color: #0d6efd; }
+
+        .group-info { display: flex; align-items: center; gap: 12px; }
+        .group-number { font-size: 12px; font-weight: bold; color: #fff; background: #6c757d; padding: 2px 6px; border-radius: 4px; min-width: 20px; text-align: center; }
+        .group-name { font-size: 14px; font-weight: 500; }
+        .group-arrow { color: #aaa; transition: all 0.2s ease; font-weight: bold; }
+
+        .empty-state { text-align: center; padding: 30px; color: #888; font-size: 14px; }
+
+        .custom-modal-footer {
+            padding: 15px 24px; border-top: 1px solid var(--border-color, #eee);
+            display: flex; justify-content: flex-end; background: var(--bg-light, #f8f9fa);
+        }
+        .btn-cancel { padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; background: #e2e3e5; color: #41464b; transition: background 0.2s; font-weight: bold; }
+        .btn-cancel:hover { background: #d3d4d5; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); } to { transform: translateY(0); } }
+
+        /* =========================================
+           7. AAA PREMIUM MINI-MAP (RADAR)
+           ========================================= */
         #minimap-wrapper {
-            position: absolute;
-            bottom: 20px;
-            left: 20px; /* Sağ alta almak istersen right: 20px; yapabilirsin */
-            width: 180px;
-            height: 140px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-            transition: all 0.3s ease;
+            position: absolute; bottom: 20px; left: 20px; width: 180px; height: 140px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden; transition: all 0.3s ease;
         }
+        body.dark-mode #minimap-wrapper { background: rgba(10, 15, 13, 0.6); border: 1px solid rgba(255, 255, 255, 0.05); }
+        
+        #minimap-ui { width: 100%; height: 100%; border-radius: 6px; }
+        #minimap-ui .leaflet-control-container { display: none !important; }
 
-        /* Dark Mode Uyumluluğu */
-        body.dark-mode #minimap-wrapper {
-            background: rgba(10, 15, 13, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        #minimap-ui {
-            width: 100%;
-            height: 100%;
-            border-radius: 6px;
-        }
-
-        /* Mini-map üzerinde Leaflet logolarını ve butonları gizle */
-        #minimap-ui .leaflet-control-container {
-            display: none !important;
-        }
-
-        /* LOADING ANIMASYONU */
-        .spin-and-grow {
-            /* linear: hızı hiç değişmeden sabit döner.*/
-            animation: normalSpin 3.5s linear infinite;
-            transform-origin: center center;
-        }
-
-        @keyframes normalSpin {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg); /* Sürekli sağa doğru tam tur döner */
-            }
-        }
     </style>
 </head>
 
 <body>
+
+    <!-- YÜKLEME EKRANI (GLOBAL LOADING) -->
     <div id="global-loading-overlay">
         <!-- İnce Film/Kumlanma Efekti (Texture) -->
         <div class="loading-noise"></div>
-        
         <!-- Yükselen Işık Partikülleri -->
         <div class="loading-particles"></div>
-        
         <!-- Görselin Arkasındaki Nefes Alan Işık Halesi -->
         <div class="ambient-glow"></div>
-        
         <!-- Senin Görselinin Bulunduğu Kapsayıcı (Floating Effect) -->
         <div class="loading-image-wrapper">
             <img id="global-loading-image" class="loading-asset spin-and-grow" src="" alt="">
         </div>
     </div>
 
-    <!-- STİL AYARLARI ŞABLONU -->
-    <template id="style-settings-template">
-        <button class="btn-settings" style="width: 100%; background: #6c757d; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 5px;">⚙️ Stil Ayarları</button>
-        
-        <div class="panel-settings" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 12px; text-align: left;">
-            <label style="display:block; margin-bottom:4px; font-weight:bold;">Renk:</label>
-            <input type="color" class="input-color" style="width:100%; height:25px; cursor:pointer; margin-bottom: 8px; border:none; padding:0;">
-            
-            <label style="display:block; margin-bottom:4px; font-weight:bold;">Kalınlık (px):</label>
-            <input type="range" class="input-weight" min="1" max="10" value="3" style="width:100%; cursor:pointer; margin-bottom: 8px;">
-            
-            <div class="line-type-container">
-                <label style="display:block; margin-bottom:4px; font-weight:bold;">Çizgi Tipi:</label>
-                <select class="input-type" style="width:100%; padding:4px; margin-bottom: 8px; border-radius:3px; border: 1px solid #ccc;">
-                    <option value="solid">Solid (Düz)</option>
-                    <option value="dot">Dot (Noktalı)</option>
-                    <option value="dash">Dash (Kesikli)</option>
-                </select>
-            </div>
-        </div>
-    </template>
-
-    <!-- Yüklenen Alan (Polygon) Popup Şablonu -->
-    <template id="imported-polygon-popup-template">
-        <div style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
-            <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri (Yüklenen)</div>
-            <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
-                <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Hesaplanmış Alan</td></tr>
-                <tr><td style="color: #6c757d;">Toplam Alan:</td><td style="font-weight: bold; color: #28a745; text-align: right;">{ALAN}</td></tr>
-            </table>
-            <button id="{ID}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Alanı Haritadan Sil</button>
-        </div>
-    </template>
-
+    <!-- ÜST MENÜ BUTONLARI -->
     <button class="menu-btn" id="openMenuBtn">☰ Layers</button>
-
     <button id="themeToggleBtn" style="position: absolute; top: 70px; right: 10px; z-index: 1000; padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🌙 Dark Theme</button>
     
+    <!-- SAĞ PANEL (SIDEBAR) -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h3>📁 Layer Management</h3>
@@ -446,6 +369,31 @@
         <button id="exportMeasuresBtn" style="width: 100%; margin-top: 15px; padding: 10px; background-color: #198754; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: background 0.2s;">
             📥 Ölçümleri GeoJSON olarak İndir
         </button>
+    </div>
+
+    <!-- ÖZEL ÇALIŞMA SEÇ MODALI -->
+    <div id="importModalOverlay" class="custom-modal-overlay" style="display: none;">
+        <div class="custom-modal">
+            <div class="custom-modal-header">
+                <div>
+                    <h3 class="modal-title">🗺 Çalışma Seç</h3>
+                    <p class="modal-subtitle">Yüklemek istediğiniz çalışmayı seçin.</p>
+                </div>
+                <button id="closeModalBtnTop" class="modal-close-btn">&times;</button>
+            </div>
+            
+            <div class="custom-modal-search">
+                <input type="text" id="importSearchInput" placeholder="🔍 Çalışma adı veya numarası ara..." autocomplete="off">
+            </div>
+            
+            <div class="custom-modal-list" id="importGroupList">
+                <!-- JS ile veritabanından gelen veriler buraya dolacak -->
+            </div>
+            
+            <div class="custom-modal-footer">
+                <button id="closeModalBtnBottom" class="btn-cancel">Vazgeç</button>
+            </div>
+        </div>
     </div>
 
     <!-- YENİ NESİL HUD (ZOOM + TOOLS) -->
@@ -490,10 +438,7 @@
 
             <button class="tool-btn" id="btn-tool-line">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <line x1="5" y1="19" x2="19" y2="5"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"/>
+                    <line x1="5" y1="19" x2="19" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     <circle cx="5" cy="19" r="2" fill="currentColor"/>
                     <circle cx="19" cy="5" r="2" fill="currentColor"/>
                 </svg>
@@ -502,14 +447,7 @@
 
             <button class="tool-btn" id="btn-tool-polygon">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <polygon
-                        points="12,3 20,8 18,18 7,21 3,11"
-                        fill="currentColor"
-                        fill-opacity="0.12"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                        stroke-linejoin="round"
-                    />
+                    <polygon points="12,3 20,8 18,18 7,21 3,11" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                 </svg>
                 <div class="tool-tooltip">Polygon Oluştur <span class="shortcut">A</span></div>
             </button>
@@ -519,7 +457,6 @@
                 <div class="tool-tooltip">Buffer (Etki Alanı) <span class="shortcut">B</span></div>
             </button>
         </div>
-
     </div>
 
     <!-- CANVAS ÜZERİNDE GÖRÜNEN FEEDBACK -->
@@ -530,13 +467,48 @@
         <div id="minimap-ui"></div>
     </div>
 
-    <!-- Harita alanı -->
+    <!-- HARİTA ALANI -->
     <div id="map"></div>
 
-    <!-- 1. Temel Harita Motoru (L nesnesini tarayıcıya bu verir) -->
+    <!-- STİL AYARLARI ŞABLONU -->
+    <template id="style-settings-template">
+        <button class="btn-settings" style="width: 100%; background: #6c757d; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 5px;">⚙️ Stil Ayarları</button>
+        
+        <div class="panel-settings" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 12px; text-align: left;">
+            <label style="display:block; margin-bottom:4px; font-weight:bold;">Renk:</label>
+            <input type="color" class="input-color" style="width:100%; height:25px; cursor:pointer; margin-bottom: 8px; border:none; padding:0;">
+            
+            <label style="display:block; margin-bottom:4px; font-weight:bold;">Kalınlık (px):</label>
+            <input type="range" class="input-weight" min="1" max="10" value="3" style="width:100%; cursor:pointer; margin-bottom: 8px;">
+            
+            <div class="line-type-container">
+                <label style="display:block; margin-bottom:4px; font-weight:bold;">Çizgi Tipi:</label>
+                <select class="input-type" style="width:100%; padding:4px; margin-bottom: 8px; border-radius:3px; border: 1px solid #ccc;">
+                    <option value="solid">Solid (Düz)</option>
+                    <option value="dot">Dot (Noktalı)</option>
+                    <option value="dash">Dash (Kesikli)</option>
+                </select>
+            </div>
+        </div>
+    </template>
+
+    <!-- YÜKLENEN ALAN (POLYGON) POPUP ŞABLONU -->
+    <template id="imported-polygon-popup-template">
+        <div style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
+            <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri (Yüklenen)</div>
+            <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
+                <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Hesaplanmış Alan</td></tr>
+                <tr><td style="color: #6c757d;">Toplam Alan:</td><td style="font-weight: bold; color: #28a745; text-align: right;">{ALAN}</td></tr>
+            </table>
+            <button id="{ID}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Alanı Haritadan Sil</button>
+        </div>
+    </template>
+
+    <!-- KÜTÜPHANELER VE SCRIPTLER -->
     <script src="leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+    
     <script src="constant.js"></script>
     <script src="js/apiService.js"></script>
     <script src="js/mapManager.js"></script>

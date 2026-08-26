@@ -218,7 +218,7 @@ window.addEventListener('DOMContentLoaded', () => {
                             layer.on('click', (e) => {
                                 // Tıklanan obje bir nokta ise direkt o koordinata uç
                                 if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
-                                    map.flyTo(layer.getLatLng(), 16, { duration: 1.2, easeLinearity: 0.25 });
+                                    map.flyTo(layer.getLatLng(), 12, { duration: 1.2, easeLinearity: 0.25 });
                                 } 
                                 // Tıklanan obje çokgen veya çizgi ise onun sınırlarını kaplayacak şekilde uç
                                 else if (layer.getBounds) {
@@ -265,40 +265,105 @@ window.addEventListener('DOMContentLoaded', () => {
     // İçe Aktar (Add Layer) Butonuna Tıklandığında Çalışacak Veritabanı Menüsü
     const addLayerBtn = document.getElementById('add-layer-btn'); // Kendi HTML'indeki butonun ID'sini buraya yaz!
     
+    // Modal Elementleri
+    const modalOverlay = document.getElementById('importModalOverlay');
+    const importGroupList = document.getElementById('importGroupList');
+    const searchInput = document.getElementById('importSearchInput');
+    const closeModalBtnTop = document.getElementById('closeModalBtnTop');
+    const closeModalBtnBottom = document.getElementById('closeModalBtnBottom');
+    
+    let currentGroups = []; // Veritabanından gelen listeyi hafızada tutacağız
+
+    // Modalı Kapatma Fonksiyonu
+    function closeImportModal() {
+        modalOverlay.style.display = 'none';
+        searchInput.value = ''; // Çıkışta aramayı temizle
+    }
+
+    // Listeyi Ekrana Çizme ve Filtreleme Fonksiyonu
+    function renderGroupList(filterText = '') {
+        importGroupList.innerHTML = '';
+        
+        // Hem isme göre hem de "Numara"ya göre arama yapar
+        const filteredGroups = currentGroups.filter((gName, index) => {
+            const searchStr = filterText.toLocaleLowerCase('tr-TR').trim();
+            const numStr = (index + 1).toString();
+            return gName.toLocaleLowerCase('tr-TR').includes(searchStr) || numStr === searchStr;
+        });
+
+        if (filteredGroups.length === 0) {
+            importGroupList.innerHTML = '<div class="empty-state">Aradığınız kriterlere uygun çalışma bulunamadı.</div>';
+            return;
+        }
+
+        filteredGroups.forEach(gName => {
+            // Orijinal numarasını bul (aramada sırası kaymasın diye)
+            const originalIndex = currentGroups.indexOf(gName) + 1;
+            
+            const item = document.createElement('div');
+            item.className = 'group-list-item';
+            item.innerHTML = `
+                <div class="group-info">
+                    <span class="group-number">${originalIndex.toString().padStart(2, '0')}</span>
+                    <span class="group-name">${gName}</span>
+                </div>
+                <span class="group-arrow">→</span>
+            `;
+            
+            // TIKLANDIĞINDA ÇALIŞACAK ANA MANTIK
+            item.addEventListener('click', () => {
+                closeImportModal();
+                loadGroupController(gName); // Mevcut yükleme motoruna ismi gönder!
+            });
+            
+            importGroupList.appendChild(item);
+        });
+    }
+
     if(addLayerBtn) {
         addLayerBtn.addEventListener('click', async (e) => {
             e.preventDefault(); 
             
+            // Eğer butona basıldığında listeyi çekerken 1 sn bekletiyorsa ufak bir loading açabilirsin
+            if (window.LoadingManager) window.LoadingManager.show();
+            
             try {
-                // 1. Backend'den Grup İsimlerini Çek (Burada loading'e gerek yok, anında gelir)
-                const groups = await ApiService.fetchGroupList();
+                // 1. Backend'den Grup İsimlerini Çek
+                currentGroups = await ApiService.fetchGroupList();
+                
+                if (window.LoadingManager) window.LoadingManager.hide();
 
-                if (!groups || groups.length === 0) {
+                if (!currentGroups || currentGroups.length === 0) {
                     alert("Veritabanında kayıtlı hiçbir çalışma/grup bulunamadı.");
                     return;
                 }
 
-                // 2. Kullanıcıya menüyü sun
-                let promptText = "Yüklemek istediğiniz çalışmanın NUMARASINI girin:\n\n";
-                groups.forEach((g, i) => promptText += `${i + 1} - ${g}\n`);
-                
-                const secim = prompt(promptText);
-                if (!secim) return; // Kullanıcı iptale bastı
-
-                const index = parseInt(secim) - 1;
-                
-                // 3. Seçilen grubu haritaya yükle
-                if (index >= 0 && index < groups.length) {
-                    const secilenGrupAdi = groups[index];
-                    // Asıl ağır işlem burada başlıyor, Loading ekranı da zaten bu fonksiyonun içinde açılıyor!
-                    loadGroupController(secilenGrupAdi);
-                } else {
-                    alert("Geçersiz bir numara girdiniz!");
-                }
+                // 2. Modalı Aç ve Listeyi Çiz
+                modalOverlay.style.display = 'flex';
+                renderGroupList();
+                searchInput.focus(); // Açılır açılmaz imleci arama kutusuna koy
 
             } catch (err) {
+                if (window.LoadingManager) window.LoadingManager.hide();
                 alert("Kayıtlı gruplar çekilirken bir hata oluştu: " + err.message);
             }
         });
     }
+    // Modal İçi Olay Dinleyicileri (Events)
+    if(searchInput) {
+        // Canlı Arama
+        searchInput.addEventListener('input', (e) => renderGroupList(e.target.value));
+    }
+    
+    // Kapatma Butonları
+    if(closeModalBtnTop) closeModalBtnTop.addEventListener('click', closeImportModal);
+    if(closeModalBtnBottom) closeModalBtnBottom.addEventListener('click', closeImportModal);
+    
+    // Dışarıya veya ESC tuşuna basınca kapatma
+    window.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) closeImportModal();
+    });
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modalOverlay.style.display === 'flex') closeImportModal();
+    });
 });
