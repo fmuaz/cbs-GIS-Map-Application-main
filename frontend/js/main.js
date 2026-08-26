@@ -246,7 +246,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     // İçe Aktar (Add Layer) Butonuna Tıklandığında Çalışacak Veritabanı Menüsü
-    const addLayerBtn = document.getElementById('addLayerBtn'); // Kendi HTML'indeki butonun ID'sini buraya yaz!
+    const addLayerBtn = document.getElementById('add-layer-btn'); // Kendi HTML'indeki butonun ID'sini buraya yaz!
     
     if(addLayerBtn) {
         addLayerBtn.addEventListener('click', async (e) => {

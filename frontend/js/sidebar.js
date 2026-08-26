@@ -15,9 +15,6 @@ const Sidebar = {
         // Panel Aç / Kapa Olayları
         document.getElementById('openMenuBtn').addEventListener('click', () => this.sidebarEl.classList.add('open'));
         document.getElementById('closeMenuBtn').addEventListener('click', () => this.sidebarEl.classList.remove('open'));
-        
-        // Add butonuna basınca gizli dosya gezginini tetikle
-        document.getElementById('addLayerBtn').addEventListener('click', () => document.getElementById('hiddenFileSelector').click());
 
         // export etme yeri
         document.getElementById('exportMeasuresBtn').addEventListener('click', () => {
