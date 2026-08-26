@@ -25,6 +25,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.MiniMapManager) window.MiniMapManager.init(map);
     LayerController.init(map);
     ImportModal.init();
+    SessionManager.init();
 
     // 4. Basit Arayüz (UI) Olayları (Zoom Butonları)
     const zoomInBtn = document.getElementById('btn-zoom-in');
