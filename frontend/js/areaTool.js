@@ -9,7 +9,7 @@ const AreaTool = {
         this.map = leafletMap;
 
         this.map.on('click', (e) => {
-            // YENİ: Shift yerine Toolbar durumunu kontrol ediyoruz
+            // Shift yerine Toolbar durumunu kontrol ediyoruz
             if (window.StateManager && window.StateManager.activeTool === 'polygon') {
                 const point = e.latlng;
                 this.polygonPoints.push(point);
@@ -174,7 +174,7 @@ const AreaTool = {
                 this.polygonMarkers = [];
                 this.activePolygonShape = null;
                 
-                // YENİ: Çizim bittiğinde aracı otomatik kapat
+                // Çizim bittiğinde aracı otomatik kapat
                 window.StateManager.setTool('none');
             }
         });

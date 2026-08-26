@@ -9,7 +9,7 @@ const DistanceTool = {
         this.map = leafletMap;
 
         this.map.on('click', (e) => {
-            // YENİ: Ctrl yerine Toolbar durumunu kontrol ediyoruz
+            // Ctrl yerine Toolbar durumunu kontrol ediyoruz
             if (window.StateManager && window.StateManager.activeTool === 'line') {
                 const point = e.latlng;
                 this.activePoints.push(point);
@@ -45,7 +45,7 @@ const DistanceTool = {
         });
 
         this.map.on('dblclick', (e) => {
-            // YENİ: Sadece Çizgi modundayken kapatma işlemini yap
+            // Sadece Çizgi modundayken kapatma işlemini yap
             if (window.StateManager && window.StateManager.activeTool === 'line' && this.activePoints.length >= 3) {
                 const firstPoint = this.activePoints[0];
                 const lastPoint = this.activePoints[this.activePoints.length - 1];

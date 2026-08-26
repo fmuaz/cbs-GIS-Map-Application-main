@@ -21,7 +21,7 @@ const BufferTool = {
             layer._hasBufferBinding = true;
 
             layer.on('click', (e) => {
-                // YENİ: Alt tuşu yerine Toolbar durumunu kontrol ediyoruz!
+                // Alt tuşu yerine Toolbar durumunu kontrol ediyoruz!
                 if (window.StateManager && window.StateManager.activeTool === 'buffer') {
                     L.DomEvent.stopPropagation(e.originalEvent); // Map'in alt click olayını durdurur
                     this.createBuffer(layer, e);
