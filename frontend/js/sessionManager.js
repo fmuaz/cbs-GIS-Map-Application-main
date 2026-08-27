@@ -8,7 +8,6 @@ const SessionManager = {
     isRestoring: false,
 
     init: function() {
-        // Haritanın ve DOM'un tam olarak yüklenmesini garantileyen akıllı döngü
         this.waitForMapAndRestore();
     },
 
@@ -261,9 +260,15 @@ const SessionManager = {
         }
 
         const polygonMarkers = [];
-        item.latlngs.forEach(pt => {
-            const m = L.circleMarker(pt, { radius: 5, color: '#0056b3', fillColor: '#007bff', fillOpacity: 1 }).addTo(map);
-            polygonMarkers.push(m);
+        // 🔥 HATA ÇÖZÜMÜ: Leaflet Polygon'da array of arrays döner [[lat,lng]]. 
+        // Döngüye sokmadan önce sadece içteki objeleri alıyoruz.
+        const flatPoints = Array.isArray(item.latlngs[0]) ? item.latlngs[0] : item.latlngs;
+
+        flatPoints.forEach(pt => {
+            if (pt && pt.lat !== undefined && pt.lng !== undefined) {
+                const m = L.circleMarker(pt, { radius: 5, color: '#0056b3', fillColor: '#007bff', fillOpacity: 1 }).addTo(map);
+                polygonMarkers.push(m);
+            }
         });
 
         const polygonGroup = L.featureGroup();
@@ -367,8 +372,10 @@ const SessionManager = {
         }
 
         item.latlngs.forEach(pt => {
-            const m = L.circleMarker(pt, { radius: 4, color: style.color || '#007bff', fillColor: style.color || '#007bff', fillOpacity: 1 }).addTo(map);
-            activeMarkers.push(m);
+            if (pt && pt.lat !== undefined && pt.lng !== undefined) {
+                const m = L.circleMarker(pt, { radius: 4, color: style.color || '#007bff', fillColor: style.color || '#007bff', fillOpacity: 1 }).addTo(map);
+                activeMarkers.push(m);
+            }
         });
 
         const measurementGroup = L.featureGroup();
@@ -590,164 +597,114 @@ const SessionManager = {
                 });
                 if (isChild && !(layer instanceof L.GeoJSON)) return;
 
-                let popupStr = '';
-                if (layer.getPopup && layer.getPopup()) popupStr = layer.getPopup().getContent();
-                else {
-                    if (typeof layer.eachLayer === 'function') {
-                        layer.eachLayer(c => { if (!popupStr && c.getPopup && c.getPopup()) popupStr = c.getPopup().getContent(); });
-                    }
-                }
-
-                let toolType = 'Unknown';
-                if (popupStr.includes('Nokta Bilgileri')) toolType = 'Point';
-                else if (popupStr.includes('Ölçüm Bilgileri') || popupStr.includes('Çizgi Ölçümü')) toolType = 'Line';
-                else if (popupStr.includes('Alan Bilgileri')) toolType = 'Polygon';
-                else if (popupStr.includes('Buffer Analizi')) toolType = 'Buffer';
-
-                if (toolType === 'Unknown') {
-                    let hasPoly = false, hasLine = false, hasMarker = false;
-                    if (typeof layer.eachLayer === 'function') {
-                        layer.eachLayer(c => {
-                            if (c instanceof L.Polygon) hasPoly = true;
-                            else if (c instanceof L.Polyline && !(c instanceof L.Polygon)) hasLine = true;
-                            else if (c instanceof L.CircleMarker || c instanceof L.Marker) hasMarker = true;
-                        });
-                    }
-                    if (hasPoly) toolType = 'Polygon';
-                    else if (hasLine) toolType = 'Line';
-                    else if (hasMarker) toolType = 'Point';
-                }
-
-                if (toolType === 'Unknown') {
-                    if (layer._restoreData) {
-                        drawnItems.push(layer._restoreData);
-                    }
-                    return;
-                }
-
+                // 🔥 HTML string arama KÖTÜ UYGULAMASI SİLİNDİ.
+                // Objelerin özellikleri (stili, tipi, metadata'sı) doğrudan Leaflet nesnelerinden okunuyor.
+                let toolType = layer.toolType || 'Unknown';
                 let style = {};
                 let label = '';
                 let latlngs = [];
                 let latlng = null;
                 let metadata = null;
 
-                if (layer.feature && layer.feature.properties && layer.feature.properties.metadata) {
-                    metadata = layer.feature.properties.metadata;
-                } else if (layer._restoreData && layer._restoreData.metadata) {
-                    metadata = layer._restoreData.metadata;
+                if (toolType === 'Unknown') {
+                    let hasPoly = false, hasLine = false, hasMarker = false;
+                    if (typeof layer.eachLayer === 'function') {
+                        layer.eachLayer(c => {
+                            if (c.isBuffer) toolType = 'Buffer';
+                            else if (c instanceof L.Polygon) hasPoly = true;
+                            else if (c instanceof L.Polyline && !(c instanceof L.Polygon)) hasLine = true;
+                            else if (c instanceof L.CircleMarker || c instanceof L.Marker) hasMarker = true;
+                        });
+                    }
+                    if (toolType === 'Unknown') {
+                        if (hasPoly) toolType = 'Polygon';
+                        else if (hasLine) toolType = 'Line';
+                        else if (hasMarker) toolType = 'Point';
+                    }
                 }
 
-                if (layer._uniqueId) {
-                    const wrapper = document.getElementById(`popup-wrapper-${layer._uniqueId}`);
-                    if (wrapper) {
-                        const colorInput = wrapper.querySelector('input[type="color"], .input-color');
-                        const weightInput = wrapper.querySelector('input[type="range"], .input-weight');
-                        const dashSelect = wrapper.querySelector('select, .input-type');
-                        const opacityInput = wrapper.querySelector('.input-opacity');
-                        
-                        style.color = colorInput ? colorInput.value : style.color;
-                        style.weight = weightInput ? parseInt(weightInput.value) : style.weight;
-                        style.dashArray = dashSelect ? dashSelect.value : style.dashArray;
-                        style.fillOpacity = opacityInput ? parseFloat(opacityInput.value) : style.fillOpacity;
-                    }
+                // Restore verisinden gelen eski bilgileri koru
+                if (layer._restoreData) {
+                     metadata = layer._restoreData.metadata || metadata;
+                     if (toolType === 'Unknown') {
+                         drawnItems.push(layer._restoreData);
+                         return;
+                     }
+                }
+
+                if (layer.feature && layer.feature.properties && layer.feature.properties.metadata) {
+                    metadata = layer.feature.properties.metadata;
+                } else if (layer.metadata) {
+                    metadata = layer.metadata;
                 }
 
                 if (toolType === 'Point') {
-                    if (typeof layer.eachLayer === 'function') {
-                        layer.eachLayer(c => {
-                            if (c instanceof L.CircleMarker || c instanceof L.Marker) {
-                                latlng = c.getLatLng();
-                                if (c.options && !style.color) {
-                                    style = { radius: c.options.radius, color: c.options.color, weight: c.options.weight, fillColor: c.options.fillColor, fillOpacity: c.options.fillOpacity };
-                                }
-                            }
-                        });
-                    }
-                } else if (toolType === 'Polygon') {
-                    if (typeof layer.eachLayer === 'function') {
-                        layer.eachLayer(c => {
-                            if (c instanceof L.Polygon) {
-                                latlngs = c.getLatLngs();
-                                if (c.options) {
-                                    style = {
-                                        color: style.color || c.options.color,
-                                        weight: style.weight !== undefined ? style.weight : c.options.weight,
-                                        dashArray: style.dashArray || c.options.dashArray,
-                                        fillColor: style.fillColor || c.options.fillColor || c.options.color,
-                                        fillOpacity: style.fillOpacity !== undefined ? style.fillOpacity : c.options.fillOpacity
-                                    };
-                                }
-                            }
-                            if (!label && c.getTooltip && c.getTooltip()) {
-                                let tc = c.getTooltip().getContent();
-                                label = typeof tc === 'string' ? tc : tc.innerHTML;
-                            }
-                        });
-                    }
-                } else if (toolType === 'Line') {
-                    if (typeof layer.eachLayer === 'function') {
-                        layer.eachLayer(c => {
-                            if (c instanceof L.Polyline && !(c instanceof L.Polygon)) {
-                                const pts = c.getLatLngs();
-                                if (Array.isArray(pts) && pts.length > 0) {
-                                    latlngs = pts.map(p => ({ lat: p.lat, lng: p.lng }));
-                                }
-                                if (c.options) {
-                                    style = {
-                                        color: style.color || c.options.color,
-                                        weight: style.weight !== undefined ? style.weight : c.options.weight,
-                                        dashArray: style.dashArray || c.options.dashArray
-                                    };
-                                }
-                            }
-                            if (!label && c.getTooltip && c.getTooltip()) {
-                                let tc = c.getTooltip().getContent();
-                                label = typeof tc === 'string' ? tc : tc.innerHTML;
-                            }
-                        });
-                    }
-                }
-
-                let parsedArea = '', parsedDist = '', parsedType = '';
-                let layerName = null;
-
-                if (toolType === 'Buffer') {
-                    const mArea = popupStr.match(/Toplam Alan:.*?<td[^>]*>(.*?)<\/td>/);
-                    if (mArea) parsedArea = mArea[1];
-                    const mDist = popupStr.match(/Mesafe:.*?<td[^>]*>(.*?)<\/td>/);
-                    if (mDist) parsedDist = mDist[1];
-                    const mType = popupStr.match(/Kaynak Tip:.*?<td[^>]*>(.*?)<\/td>/);
-                    if (mType) parsedType = mType[1];
-
-                    if (window.MapManager && MapManager.mapLayersStorage) {
-                        for (let key in MapManager.mapLayersStorage) {
-                            if (MapManager.mapLayersStorage[key] === layer && key.startsWith('Buffer_')) {
-                                layerName = key;
-                                break;
-                            }
+                    layer.eachLayer(c => {
+                        if (c instanceof L.CircleMarker || c instanceof L.Marker) {
+                            latlng = c.getLatLng();
+                            style = {
+                                radius: c.options.radius,
+                                color: c.options.color,
+                                weight: c.options.weight,
+                                fillColor: c.options.fillColor,
+                                fillOpacity: c.options.fillOpacity
+                            };
                         }
-                    }
+                    });
                 } else if (toolType === 'Polygon') {
-                    const mArea = popupStr.match(/Toplam Alan:.*?<td[^>]*>(.*?)<\/td>/);
-                    if (mArea) parsedArea = mArea[1];
+                    layer.eachLayer(c => {
+                        if (c instanceof L.Polygon) {
+                            latlngs = c.getLatLngs();
+                            style = {
+                                color: c.options.color,
+                                weight: c.options.weight,
+                                dashArray: c.options.dashArray,
+                                fillColor: c.options.fillColor,
+                                fillOpacity: c.options.fillOpacity
+                            };
+                        }
+                        if (!label && c.getTooltip && c.getTooltip()) {
+                            let tc = c.getTooltip().getContent();
+                            label = typeof tc === 'string' ? tc : tc.innerHTML;
+                        }
+                    });
                 } else if (toolType === 'Line') {
-                    const mDist = popupStr.match(/Toplam Çevre:.*?<td[^>]*>(.*?)<\/td>/ || /Toplam Mesafe:.*?<td[^>]*>(.*?)<\/td>/);
-                    if (mDist) parsedDist = mDist[1];
+                    layer.eachLayer(c => {
+                        if (c instanceof L.Polyline && !(c instanceof L.Polygon)) {
+                            const pts = c.getLatLngs();
+                            if (Array.isArray(pts) && pts.length > 0) {
+                                latlngs = pts.map(p => ({ lat: p.lat, lng: p.lng }));
+                            }
+                            style = {
+                                color: c.options.color,
+                                weight: c.options.weight,
+                                dashArray: c.options.dashArray
+                            };
+                        }
+                        if (!label && c.getTooltip && c.getTooltip()) {
+                            let tc = c.getTooltip().getContent();
+                            label = typeof tc === 'string' ? tc : tc.innerHTML;
+                        }
+                    });
+                } else if (toolType === 'Buffer') {
+                    if (layer._restoreData) {
+                        style = layer._restoreData.style;
+                    }
                 }
 
                 drawnItems.push({
                     toolType: toolType,
-                    layerName: layerName,
+                    layerName: layer.layerName || (layer._restoreData ? layer._restoreData.layerName : null),
                     style: style,
                     label: label,
                     latlng: latlng,
                     latlngs: latlngs,
                     metadata: metadata,
                     geoJson: typeof layer.toGeoJSON === 'function' ? layer.toGeoJSON() : null,
-                    parsedArea: parsedArea,
-                    parsedDist: parsedDist,
-                    parsedType: parsedType,
-                    uniqueId: layer._uniqueId
+                    parsedArea: layer._restoreData ? layer._restoreData.parsedArea : '',
+                    parsedDist: layer._restoreData ? layer._restoreData.parsedDist : '',
+                    parsedType: layer._restoreData ? layer._restoreData.parsedType : '',
+                    uniqueId: layer._uniqueId || ('saved_' + Date.now() + Math.floor(Math.random()*1000))
                 });
             }
         });
@@ -766,10 +723,11 @@ const SessionManager = {
             clearTimeout(timeout);
             timeout = setTimeout(() => this.updateActivity(), 1000); 
         };
-        window.addEventListener('mousemove', resetTimer);
+        // 🔥 PERFORMANS İYİLEŞTİRMESİ: Saniyede onlarca kez gereksiz kayıt yapan "mousemove" ve "scroll" eventleri kaldırıldı.
+        // Artık sadece tıklama (click), tuşa basma (keydown) ve sürükleme sonu (mouseup) aksiyonlarında session kaydedilecek.
         window.addEventListener('click', resetTimer);
         window.addEventListener('keydown', resetTimer);
-        window.addEventListener('scroll', resetTimer);
+        window.addEventListener('mouseup', resetTimer); 
     },
 
     setupStateObserver: function() {
