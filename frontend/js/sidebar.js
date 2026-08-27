@@ -12,14 +12,46 @@ const Sidebar = {
         this.layerListEl = document.getElementById('layerList');
         this.emptyWarningEl = document.getElementById('emptyWarning');
 
-        // Panel Aç / Kapa Olayları
-        document.getElementById('openMenuBtn').addEventListener('click', () => this.sidebarEl.classList.add('open'));
-        document.getElementById('closeMenuBtn').addEventListener('click', () => this.sidebarEl.classList.remove('open'));
+        // Panel Aç / Kapa Olayları (GÜVENLİ KONTROL)
+        const openBtn = document.getElementById('openMenuBtn');
+        if (openBtn) {
+            openBtn.addEventListener('click', () => {
+                if (this.sidebarEl) this.sidebarEl.classList.add('open');
+            });
+        }
 
-        // export etme yeri
-        document.getElementById('exportMeasuresBtn').addEventListener('click', () => {
-            if(window.ExportService) ExportService.exportMeasurementsToGeoJSON();
-        });
+        const closeBtn = document.getElementById('closeMenuBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                if (this.sidebarEl) this.sidebarEl.classList.remove('open');
+            });
+        }
+
+        // Export etme yeri (GÜVENLİ KONTROL)
+        const exportBtn = document.getElementById('exportMeasuresBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                if(window.ExportService) ExportService.exportMeasurementsToGeoJSON();
+            });
+        }
+
+        // 🔥 ÇÖZÜM BURADA: O mavi Import butonuna tıklandığında eski modalı ez ve klasörü aç!
+        // HTML'de id'si "add-layer-btn" olan butonu yakalıyoruz
+        const importBtn = document.getElementById('add-layer-btn');
+        if (importBtn) {
+            // HTML'de kalmış olabilecek Bootstrap modal özelliklerini Javascript ile zorla siliyoruz
+            importBtn.removeAttribute('data-bs-toggle');
+            importBtn.removeAttribute('data-bs-target');
+            
+            importBtn.addEventListener('click', (e) => {
+                e.preventDefault(); // Eski davranışları durdur
+                e.stopImmediatePropagation(); // Diğer click eventlerini (modal açma vs.) engelle
+                
+                if (window.ImportService) {
+                    window.ImportService.triggerFileInput();
+                }
+            });
+        }
 
         // ARAMA KUTUSUNU (CANLI FİLTRE) DOĞRUDAN BURADA DİNLİYORUZ
         const searchInput = document.getElementById('layerSearchInput');

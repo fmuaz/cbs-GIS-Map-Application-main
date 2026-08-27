@@ -44,6 +44,10 @@ const ExportService = {
         // 2. Havuzdaki çizimleri GeoJSON formatına çevir VE STİLLERİ (Renk, Çizgi vb.) KAYDET
         const features = [];
         this.globalMeasureFolder.eachLayer(function (layer) {
+            // Bu üst katmanın (Point/Line/Polygon/Buffer) kendi obje kimliği varsa alıyoruz.
+            // Bu kimlik sayesinde import ederken "hangi parçalar aynı objeye ait" bilgisini geri kurabileceğiz.
+            const objectId = layer._objectId || null;
+
             // Eğer layer bir grupsa (distanceTool veya areaTool genelde grup atar), içindekileri dön
             const extractFeature = (subLayer) => {
                 if (typeof subLayer.toGeoJSON === 'function') {
@@ -53,6 +57,9 @@ const ExportService = {
                     // Çizilen her bir şeklin (feature) içine grup adını mühürlüyoruz!
                     feature.properties.grupAdi = grupAdi.trim();
                     feature.properties.exportId = this.exportCounter;
+
+                    // Objenin parçalarını (nokta+çizgi/poligon gövdesi) birbirine bağlayan kimlik
+                    if (objectId) feature.properties.objectId = objectId;
 
                     // Leaflet'teki Çizgi, Renk ve Stil ayarlarını GeoJSON properties içine göm
                     if (subLayer.options) {

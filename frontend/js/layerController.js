@@ -87,8 +87,9 @@ const LayerController = {
                             }
                         });
 
-                        // ESKİ KUSURSUZ STİL VE RENK MANTIĞI
-                        const restoredLayer = L.geoJSON(standardizedGeoJson, {
+                        // ESKİ KUSURSUZ STİL VE RENK MANTIĞI (değişmedi, sadece haritaya direkt eklenmiyor,
+                        // önce objelerine ayırıp gruplayacağız)
+                        const flatLayer = L.geoJSON(standardizedGeoJson, {
                             pointToLayer: function (feature, latlng) {
                                 const props = feature.properties || {};
                                 return L.circleMarker(latlng, {
@@ -115,15 +116,63 @@ const LayerController = {
                                     };
                                 }
                             }
-                        }).addTo(this.map);
+                        });
 
-                        restoredLayer.eachLayer((layer) => {
+                        // Bütün parçaları (nokta/çizgi/poligon) "objectId"'ye göre kendi objesinde topluyoruz.
+                        // objectId yoksa (eski/legacy kayıt) her parçayı kendi başına bir obje kabul ediyoruz,
+                        // yani eski davranış aynen korunuyor.
+                        const objectBuckets = {};
+                        let legacyCounter = 0;
+                        flatLayer.eachLayer((sublayer) => {
+                            const props = (sublayer.feature && sublayer.feature.properties) || {};
+                            const objectId = props.objectId || ('legacy_' + (legacyCounter++));
+                            if (!objectBuckets[objectId]) objectBuckets[objectId] = [];
+                            objectBuckets[objectId].push(sublayer);
+                        });
+
+                        // Tüm objeleri içine alacak ana kap. Sidebar'dan "dosyayı sil" dendiğinde
+                        // bu kap kaldırılır ve içindeki her şey (tüm objeler) birlikte gider.
+                        const restoredLayer = L.featureGroup().addTo(this.map);
+
+                        Object.keys(objectBuckets).forEach((objectId) => {
+                            const parts = objectBuckets[objectId];
+
+                            // Bu objenin baskın tipini (Point / LineString / Polygon) parçalarından anlıyoruz
+                            let objectType = 'Point';
+                            parts.forEach((p) => {
+                                const gt = ((p.feature && p.feature.geometry && p.feature.geometry.type) || '').toLowerCase();
+                                if (gt.includes('polygon')) objectType = 'Polygon';
+                                else if (gt.includes('line') && objectType !== 'Polygon') objectType = 'LineString';
+                            });
+
+                            // Objenin tüm parçalarını (nokta+çizgi/poligon gövdesi) TEK bir featureGroup'a topluyoruz.
+                            // Böylece bu objeye ait tek bir popup ve tek bir silme butonu olacak; silince
+                            // parçaların hepsi (örn. bir poligonun kendi köşe noktaları) birlikte silinecek.
+                            const objectGroup = L.featureGroup(parts).addTo(restoredLayer);
+
+                            // Varsa daha önce kaydedilmiş metadata'yı gruba taşıyoruz ki popup açılınca görünsün
+                            const existingMeta = parts
+                                .map(p => p.feature && p.feature.properties && p.feature.properties.userMetadata)
+                                .find(m => m && (m.name || m.category || m.description));
+                            objectGroup.feature = {
+                                type: 'Feature',
+                                properties: { userMetadata: existingMeta || JSON.parse(JSON.stringify(window.METADATA_CONFIG.DEFAULT_TEMPLATE)) }
+                            };
+
+                            // Poligon/çizgi gövdesine (varsa) etiket (uzunluk/alan) tooltip'ini geri bağlıyoruz
+                            const shapePart = parts.find(p => p instanceof L.Polygon) || parts.find(p => p instanceof L.Polyline && !(p instanceof L.Polygon));
+                            if (shapePart && shapePart.feature && shapePart.feature.properties && shapePart.feature.properties.label) {
+                                shapePart.bindTooltip(shapePart.feature.properties.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
+                            }
+
                             const currentId = 'restored_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
-                            if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
-                                const lat = layer.getLatLng().lat.toFixed(5);
-                                const lng = layer.getLatLng().lng.toFixed(5);
-                                const pointPopupHtml = `
+                            let popupContent;
+                            if (objectType === 'Point') {
+                                const soloPoint = parts[0];
+                                const lat = soloPoint.getLatLng().lat.toFixed(5);
+                                const lng = soloPoint.getLatLng().lng.toFixed(5);
+                                popupContent = `
                                     <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                                         <div id="main-content-${currentId}">
                                             <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">📍 Nokta Bilgileri</div>
@@ -134,49 +183,50 @@ const LayerController = {
                                             ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
                                             <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Sil</button>
                                         </div>
+                                        ${window.StyleSettings ? window.StyleSettings.getSettingsHTML(currentId, 'Point') : ''}
                                     </div>`;
-                                layer.bindPopup(pointPopupHtml, { maxWidth: 250 });
-                            }
-                            else if (layer instanceof L.Polygon) {
-                                const labelContent = layer.feature.properties.label || `Geometri Alanı`;
-                                layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip(layer.getBounds().getCenter());
-
-                                const polyPopupHtml = `
+                            } else if (objectType === 'Polygon') {
+                                popupContent = `
                                     <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                                         <div id="main-content-${currentId}">
                                             <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri</div>
                                             ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
                                             <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Sil</button>
                                         </div>
+                                        ${window.StyleSettings ? window.StyleSettings.getSettingsHTML(currentId, 'Polygon') : ''}
                                     </div>`;
-                                layer.bindPopup(polyPopupHtml, { maxWidth: 250 });
-                            } 
-                            else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-                                const labelContent = layer.feature.properties.label || `Çizgi Uzunluğu`;
-                                layer.bindTooltip(labelContent, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
-
-                                const linePopupHtml = `
+                            } else {
+                                popupContent = `
                                     <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                                         <div id="main-content-${currentId}">
                                             <div style="font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🗺️ Çizgi Bilgileri</div>
                                             ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
                                             <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 5px;">🗑️ Sil</button>
                                         </div>
+                                        ${window.StyleSettings ? window.StyleSettings.getSettingsHTML(currentId, 'LineString') : ''}
                                     </div>`;
-                                layer.bindPopup(linePopupHtml, { maxWidth: 250 });
                             }
 
-                            layer.on('click', (e) => {
-                                if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
-                                    this.map.flyTo(layer.getLatLng(), 14, { duration: 1.2, easeLinearity: 0.25 });
-                                } else if (layer.getBounds) {
-                                    this.map.flyToBounds(layer.getBounds(), { padding: [50, 50], duration: 1.2, easeLinearity: 0.25 });
-                                }
+                            objectGroup.bindPopup(popupContent, { maxWidth: 250 });
+
+                            // Objenin herhangi bir parçasına tıklanınca objenin TAMAMINA (bütün parçalarına) odaklan
+                            parts.forEach((part) => {
+                                part.on('click', () => {
+                                    if (objectType === 'Point') {
+                                        this.map.flyTo(parts[0].getLatLng(), 14, { duration: 1.2, easeLinearity: 0.25 });
+                                    } else if (objectGroup.getBounds().isValid()) {
+                                        this.map.flyToBounds(objectGroup.getBounds(), { padding: [50, 50], duration: 1.2, easeLinearity: 0.25 });
+                                    }
+                                });
                             });
 
-                            layer.on('popupopen', () => {
-                                document.getElementById(currentId)?.addEventListener('click', () => { restoredLayer.removeLayer(layer); });
-                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(layer, currentId);
+                            objectGroup.on('popupopen', () => {
+                                // Silme butonu: objeye ait TÜM parçaları (nokta+gövde) birlikte kaldırır
+                                document.getElementById(currentId)?.addEventListener('click', () => {
+                                    restoredLayer.removeLayer(objectGroup);
+                                });
+                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(objectGroup, currentId);
+                                if (window.StyleSettings) window.StyleSettings.bindEvents(objectGroup, currentId, objectType);
                             });
                         });
 

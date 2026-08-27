@@ -29,6 +29,9 @@ const PointTool = {
         if (window.ExportService) window.ExportService.registerMeasurement(pointGroup);
 
         const uniqueId = 'point_' + Date.now();
+
+        // Bu noktayı tek bir "obje" olarak işaretliyoruz (export/import'ta bütünlüğünü korumak için)
+        pointGroup._objectId = uniqueId;
         
         const popupContent = `
             <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">

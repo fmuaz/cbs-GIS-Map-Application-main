@@ -89,6 +89,9 @@ const DistanceTool = {
                 }
 
                 const uniqueGroupId = 'measure_' + Date.now();
+
+                // Bu çizgiyi (tüm segment ve köşe noktalarıyla) tek bir "obje" olarak işaretliyoruz
+                measurementGroup._objectId = uniqueGroupId;
                 
                 const popupContent = `
                     <div id="popup-wrapper-${uniqueGroupId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">

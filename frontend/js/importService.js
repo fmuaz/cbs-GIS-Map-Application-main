@@ -1,10 +1,54 @@
 const ImportService = {
+    
+    // 🔥 1. YENİ EKLENEN KISIM: Bilgisayardan Dosya Seçtirme Penceresi Açan Fonksiyon
+    triggerFileInput: function() {
+        let fileInput = document.getElementById('local-geojson-importer');
+        
+        // Gizli dosya seçici input oluşturulmamışsa DOM'a ekle
+        if (!fileInput) {
+            fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'local-geojson-importer';
+            fileInput.accept = '.geojson, .json';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+
+            // Klasörden dosya seçildiğinde çalışacak yapı
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const fileName = file.name.replace(/\.[^/.]+$/, ""); // .geojson uzantısını kaldırır
+                
+                // Sistemin temel değişkenlerine güvenli erişim (Mevcut yapıdan çekiyoruz)
+                const map = window.LayerController ? LayerController.map : (window.MapManager && window.MapManager.map ? window.MapManager.map : null);
+                const uploadedFileSet = window.LayerController && LayerController.uploadedFileSet ? LayerController.uploadedFileSet : new Set();
+                const toggleVisibilityFn = window.LayerController ? LayerController.toggleLayerVisibility : function(){};
+                const deleteLayerFn = window.LayerController ? LayerController.deleteLayer : function(){};
+
+                if (!map) {
+                    alert("Harita yüklenemedi. Lütfen sayfayı yenileyin.");
+                    return;
+                }
+
+                // Senin efsane ana import/yükleme fonksiyonuna paslıyoruz!
+                this.handleMeasurementImport(file, fileName, map, uploadedFileSet, toggleVisibilityFn, deleteLayerFn);
+                
+                // Aynı dosyayı art arda iki kere seçebilmek için input'u sıfırla
+                fileInput.value = ""; 
+            });
+        }
+        
+        fileInput.click();
+    },
+
+    // 🔥 2. ESKİ ORİJİNAL KODUN (Hiçbir şeye dokunulmadı, sadece DB'ye kaydetme eklendi)
     handleMeasurementImport: function(fileObject, fileName, map, uploadedFileSet, toggleVisibilityFn, deleteLayerFn) {
         
         // Mükerrer dosya uyarısı aynen korunuyor
         if (uploadedFileSet.has(fileName)) {
-            alert(window.APP_MESSAGES.LAYER_ALREADY_LOADED(fileName));
-            const targetLayer = MapManager.mapLayersStorage[fileName];
+            alert(window.APP_MESSAGES?.LAYER_ALREADY_LOADED ? window.APP_MESSAGES.LAYER_ALREADY_LOADED(fileName) : `Bu katman zaten yüklü: ${fileName}`);
+            const targetLayer = window.MapManager && window.MapManager.mapLayersStorage ? window.MapManager.mapLayersStorage[fileName] : null;
             if (targetLayer && map.hasLayer(targetLayer)) {
                 map.fitBounds(targetLayer.getBounds());
             }
@@ -25,9 +69,9 @@ const ImportService = {
                     pointToLayer: function (feature, latlng) {
                         pointCount++;
                         return L.circleMarker(latlng, {
-                            radius: GIS_CONFIG.MEASURE_STYLE.MARKER_RADIUS,
-                            color: GIS_CONFIG.MEASURE_STYLE.LINE_COLOR,
-                            fillColor: GIS_CONFIG.MEASURE_STYLE.FILL_COLOR,
+                            radius: window.GIS_CONFIG?.MEASURE_STYLE?.MARKER_RADIUS || 5,
+                            color: window.GIS_CONFIG?.MEASURE_STYLE?.LINE_COLOR || '#007bff',
+                            fillColor: window.GIS_CONFIG?.MEASURE_STYLE?.FILL_COLOR || '#007bff',
                             fillOpacity: 1
                         });
                     },
@@ -35,9 +79,9 @@ const ImportService = {
                         if (feature.geometry && feature.geometry.type.includes("LineString")) {
                             lineCount++;
                             return {
-                                color: GIS_CONFIG.MEASURE_STYLE.LINE_COLOR,
-                                weight: GIS_CONFIG.MEASURE_STYLE.WEIGHT,
-                                dashArray: GIS_CONFIG.MEASURE_STYLE.DASH_ARRAY
+                                color: window.GIS_CONFIG?.MEASURE_STYLE?.LINE_COLOR || '#007bff',
+                                weight: window.GIS_CONFIG?.MEASURE_STYLE?.WEIGHT || 3,
+                                dashArray: window.GIS_CONFIG?.MEASURE_STYLE?.DASH_ARRAY || null
                             };
                         } else if (feature.geometry && feature.geometry.type.includes("Polygon")) {
                             polygonCount++;
@@ -126,35 +170,47 @@ const ImportService = {
                         // Silme İşlemi
                         document.getElementById(currentId)?.addEventListener('click', () => { restoredLayer.removeLayer(layer); });
 
-                        // Sadece Metadata'yı Çalıştır (Stil değiştirme ayarları buradan tamamen kaldırıldı)
+                        // Sadece Metadata'yı Çalıştır
                         if (window.FeatureMetadata) {
                             window.FeatureMetadata.bindMetadataEvents(layer, currentId);
                         }
                     });
                 });
 
-                MapManager.mapLayersStorage[fileName] = restoredLayer;
+                if (window.MapManager) {
+                    MapManager.mapLayersStorage[fileName] = restoredLayer;
+                }
+                
                 uploadedFileSet.add(fileName);
 
-                Sidebar.appendLayerCard(
-                    fileName, pointCount, lineCount, polygonCount, toggleVisibilityFn, deleteLayerFn,
-                    (name) => {
-                        const target = MapManager.mapLayersStorage[name];
-                        if (target) map.fitBounds(target.getBounds());
-                    }
-                );
+                if (window.Sidebar) {
+                    Sidebar.appendLayerCard(
+                        fileName, pointCount, lineCount, polygonCount, toggleVisibilityFn, deleteLayerFn,
+                        (name) => {
+                            const target = MapManager.mapLayersStorage[name];
+                            if (target) map.fitBounds(target.getBounds());
+                        }
+                    );
+                }
 
                 if (restoredLayer.getBounds().isValid()) {
                     map.fitBounds(restoredLayer.getBounds());
                 }
-                
+
+                // 🔥 3. YENİ EKLENEN KISIM: HARİTAYA YÜKLEDİKTEN SONRA DB'YE YEDEKLE 🔥
+                if (window.ApiService && typeof window.ApiService.saveMeasurements === 'function') {
+                    window.ApiService.saveMeasurements(geojsonContent)
+                        .then(() => console.log(`[IMPORT DB] ${fileName} başarıyla veritabanına yedeklendi.`))
+                        .catch(err => console.error("[IMPORT DB HATA] Veritabanı yedeği başarısız:", err));
+                }
+
                 // Dosya hatasız parse edildi ve haritaya işlendi Yükleme Ekranını Kapat
                 if (window.LoadingManager) window.LoadingManager.hide();
 
             } catch (err) {
                 // Hata durumunda da ekranın donup kalmaması için Loading Ekranını Kapat
                 if (window.LoadingManager) window.LoadingManager.hide();
-                alert(window.APP_MESSAGES.IMPORT_ERROR(err.message));
+                alert(window.APP_MESSAGES?.IMPORT_ERROR ? window.APP_MESSAGES.IMPORT_ERROR(err.message) : `Dosya yüklenirken hata: ${err.message}`);
             }
         };
         

@@ -96,6 +96,9 @@ const AreaTool = {
                 }
 
                 const uniquePolyId = 'poly_' + Date.now();
+
+                // Bu poligonu (gövde ve köşe noktalarıyla) tek bir "obje" olarak işaretliyoruz
+                polygonGroup._objectId = uniquePolyId;
                 
                 const popupContent = `
                     <div id="popup-wrapper-${uniquePolyId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">

@@ -72,6 +72,11 @@ const BufferTool = {
                 style: window.GIS_CONFIG.BUFFER.STYLE 
             }).addTo(this.map);
 
+            // Bu buffer'ı tek bir "obje" olarak işaretliyoruz ve export havuzuna kaydediyoruz
+            // (Daha önce burası eksikti, bu yüzden buffer'lar export/DB'ye hiç gitmiyordu)
+            bufferLayer._objectId = layerName;
+            if (window.ExportService) window.ExportService.registerMeasurement(bufferLayer);
+
             // Her bir alt parçasına Popup ve Özelleştirme Ayarlarını (StyleSettings) bağla
             bufferLayer.eachLayer((childLayer) => {
                 const uniqueId = `buf_${Date.now()}_${Math.floor(Math.random() * 1000)}`;

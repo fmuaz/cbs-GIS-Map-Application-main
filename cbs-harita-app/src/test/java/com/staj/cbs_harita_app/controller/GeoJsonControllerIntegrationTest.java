@@ -24,7 +24,7 @@ class GeoJsonControllerIntegrationTest {
         // When & Then
         // Gerçek servise gidilecek, dosya fiziksel olarak bulunamayacağı için
         // FileNotFoundException fırlayacak. Controller'daki catch bloğu da bunu 400 (veya 404) yapacak.
-        mockMvc.perform(get("/api/geo/getGeojson/" + wrongFile))
+        mockMvc.perform(get("/api/geo/getGeoJson/" + wrongFile))
                 .andExpect(status().isBadRequest());
     }
 }
