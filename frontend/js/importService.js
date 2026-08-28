@@ -22,7 +22,6 @@ const ImportService = {
                 const deleteLayerFn = window.LayerController ? LayerController.deleteLayer : function(){};
 
                 if (!map) {
-                    console.error("Harita nesnesi bulunamadı.");
                     alert("Harita yüklenemedi. Lütfen sayfayı yenileyin.");
                     return;
                 }
@@ -53,178 +52,213 @@ const ImportService = {
                 const geojsonContent = JSON.parse(event.target.result);
                 let pointCount = 0, lineCount = 0, polygonCount = 0;
 
-                const restoredLayer = L.geoJSON(geojsonContent, {
-                    // --- 1. POINT STYLE RESTORE ---
-                    pointToLayer: function (feature, latlng) {
-                        const savedStyle = feature.properties?.style || {};
-                        return L.circleMarker(latlng, {
-                            radius: savedStyle.radius || window.GIS_CONFIG?.MEASURE_STYLE?.MARKER_RADIUS || 5,
-                            color: savedStyle.color || window.GIS_CONFIG?.MEASURE_STYLE?.LINE_COLOR || '#007bff',
-                            fillColor: savedStyle.fillColor || window.GIS_CONFIG?.MEASURE_STYLE?.FILL_COLOR || '#007bff',
-                            fillOpacity: savedStyle.fillOpacity !== undefined ? savedStyle.fillOpacity : 1,
-                            opacity: savedStyle.opacity !== undefined ? savedStyle.opacity : 1,
-                            weight: savedStyle.weight || 2
-                        });
-                    },
-                    // --- 2. LINE VE POLYGON STYLE RESTORE ---
-                    style: function (feature) {
-                        if (feature.properties && feature.properties.style && Object.keys(feature.properties.style).length > 0) {
-                            return feature.properties.style;
-                        }
+                const layerStorageGroup = L.featureGroup().addTo(map);
+
+                const features = geojsonContent.features || (geojsonContent.type === "Feature" ? [geojsonContent] : []);
+
+                features.forEach(feature => {
+                    const geomType = feature.geometry ? feature.geometry.type : '';
+                    const props = feature.properties || {};
+                    const style = props.style || {};
+                    const uniqueId = props.objectId || ('restored_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+
+                    // --- 1. POLİGON IMPORT (KÖŞE NOKTALARI VE GÖVDE TEK GRUPTA) ---
+                    if (geomType.includes("Polygon")) {
+                        polygonCount++;
+                        const coords = feature.geometry.coordinates[0].map(c => [c[1], c[0]]); // [lat, lng]
                         
-                        if (feature.geometry && feature.geometry.type.includes("LineString")) {
-                            return {
-                                color: window.GIS_CONFIG?.MEASURE_STYLE?.LINE_COLOR || '#007bff',
-                                weight: window.GIS_CONFIG?.MEASURE_STYLE?.WEIGHT || 3,
-                                dashArray: window.GIS_CONFIG?.MEASURE_STYLE?.DASH_ARRAY || null
-                            };
-                        } else if (feature.geometry && feature.geometry.type.includes("Polygon")) {
-                            return { color: '#28a745', weight: 3, fillColor: '#28a745', fillOpacity: 0.3 };
+                        const poly = L.polygon(coords, {
+                            color: style.color || '#28a745',
+                            weight: style.weight !== undefined ? style.weight : 3,
+                            fillColor: style.fillColor || '#28a745',
+                            fillOpacity: style.fillOpacity !== undefined ? style.fillOpacity : 0.3,
+                            dashArray: style.dashArray || null
+                        });
+
+                        const polyMarkers = [];
+                        coords.forEach(pt => {
+                            const m = L.circleMarker(pt, { radius: 5, color: '#0056b3', fillColor: '#007bff', fillOpacity: 1, interactive: false });
+                            polyMarkers.push(m);
+                        });
+
+                        const polyGroup = L.featureGroup();
+                        polyGroup.addLayer(poly);
+                        polyMarkers.forEach(m => polyGroup.addLayer(m));
+                        polyGroup.addTo(map);
+                        layerStorageGroup.addLayer(polyGroup);
+
+                        if (props.metadata) polyGroup.metadata = props.metadata;
+
+                        // Alan Tooltip
+                        if (window.turf) {
+                            const turfPoly = turf.polygon(feature.geometry.coordinates);
+                            const areaM2 = turf.area(turfPoly);
+                            const areaFormatted = areaM2 >= 1000000 ? `${(areaM2 / 1000000).toFixed(2)} km²` : `${areaM2.toFixed(0)} m²`;
+                            poly.bindTooltip(props.label || `📐 Alan: ${areaFormatted}`, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
                         }
-                    },
-                    // --- 3. SAYIMLAR VE METADATA RESTORE ---
-                    onEachFeature: function(feature, layer) {
-                        // Sayımları doğru yapabilmek için türleri burada artırıyoruz
-                        if (feature.geometry) {
-                            if (feature.geometry.type === "Point") pointCount++;
-                            else if (feature.geometry.type.includes("LineString")) lineCount++;
-                            else if (feature.geometry.type.includes("Polygon")) polygonCount++;
-                        }
 
-                        if (feature.properties?.metadata) layer.metadata = feature.properties.metadata;
-                        if (feature.properties?.toolType) layer.toolType = feature.properties.toolType;
-                        if (feature.properties?.isBuffer !== undefined) layer.isBuffer = feature.properties.isBuffer;
-                        if (feature.properties?.layerName) layer.layerName = feature.properties.layerName;
-                        if (feature.properties?.objectId) layer._objectId = feature.properties.objectId;
-
-                        if (feature.properties?.style) {
-                            Object.assign(layer.options, feature.properties.style);
-                        }
-                    }
-                }).addTo(map);
-
-                // --- 4. POPUP VE ETKİLEŞİM MANTIĞI (POINT DAHİL) ---
-                restoredLayer.eachLayer((layer) => {
-                    const currentId = 'restored_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-                    const layerFeature = layer.feature || {};
-                    const layerProps = layerFeature.properties || {};
-
-                    // Point (Nokta) Popup Desteği
-                    if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
-                        const latlng = layer.getLatLng();
-                        const pointPopupHtml = `
-                            <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
-                                <div id="main-content-${currentId}">
-                                    <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">📍 Nokta Bilgileri</div>
-                                    <table style="width: 100%; font-size: 11px; margin-bottom: 10px;">
-                                        <tr><td style="color: #6c757d;">Enlem:</td><td style="font-weight: bold; text-align: right;">${latlng.lat.toFixed(5)}</td></tr>
-                                        <tr><td style="color: #6c757d;">Boylam:</td><td style="font-weight: bold; text-align: right;">${latlng.lng.toFixed(5)}</td></tr>
-                                    </table>
-                                    ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
-                                    <button id="del_${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Noktayı Sil</button>
+                        // Popup ve Tek Tıkla Toplu Silme
+                        const polyPopupHtml = `
+                            <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
+                                <div id="main-content-${uniqueId}">
+                                    <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri</div>
+                                    ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(uniqueId) : ''}
+                                    <button id="del_${uniqueId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 5px;">🗑️ Alanı Haritadan Sil</button>
                                 </div>
                             </div>
                         `;
-                        layer.bindPopup(pointPopupHtml, { maxWidth: 250 });
-                        
-                        layer.on('popupopen', () => {
+                        poly.bindPopup(polyPopupHtml, { maxWidth: 250 });
+
+                        poly.on('popupopen', () => {
                             setTimeout(() => {
-                                document.getElementById(`del_${currentId}`)?.addEventListener('click', () => {
-                                    restoredLayer.removeLayer(layer);
+                                document.getElementById(`del_${uniqueId}`)?.addEventListener('click', () => {
+                                    map.removeLayer(polyGroup);
+                                    layerStorageGroup.removeLayer(polyGroup);
                                 });
-                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(layer, currentId);
+                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(polyGroup, uniqueId);
                             }, 50);
                         });
-                        return;
                     }
 
-                    // Polygon Popup
-                    if (layer instanceof L.Polygon) {
-                        const rawLatLngs = layer.getLatLngs()[0];
-                        if (rawLatLngs && rawLatLngs.length >= 3) {
-                            const turfCoordinates = rawLatLngs.map(p => [parseFloat(p.lng), parseFloat(p.lat)]);
-                            turfCoordinates.push([parseFloat(rawLatLngs[0].lng), parseFloat(rawLatLngs[0].lat)]);
+                    // 2. ÇİZGİ IMPORT (TÜM KENARLAR VE NOKTALAR BİRLİKTE SİLİNİR)
+                    else if (geomType.includes("LineString")) {
+                        lineCount++;
+                        const coords = feature.geometry.coordinates.map(c => [c[1], c[0]]);
+                        
+                        const line = L.polyline(coords, {
+                            color: style.color || '#007bff',
+                            weight: style.weight !== undefined ? style.weight : 3,
+                            dashArray: style.dashArray || null
+                        });
 
-                            const turfPolygon = turf.polygon([turfCoordinates]);
-                            const areaSquareMeters = turf.area(turfPolygon);
+                        const lineMarkers = [];
+                        coords.forEach(pt => {
+                            const m = L.circleMarker(pt, { radius: 4, color: style.color || '#007bff', fillColor: style.color || '#007bff', fillOpacity: 1, interactive: false });
+                            lineMarkers.push(m);
+                        });
 
-                            let areaFormatted = areaSquareMeters >= 1000000 
-                                ? `${(areaSquareMeters / 1000000).toFixed(2)} km²` 
-                                : `${areaSquareMeters.toFixed(0)} m²`;
+                        const lineGroup = L.featureGroup();
+                        lineGroup.addLayer(line);
+                        lineMarkers.forEach(m => lineGroup.addLayer(m));
+                        lineGroup.addTo(map);
+                        layerStorageGroup.addLayer(lineGroup);
 
-                            if (layerProps.label) {
-                                layer.bindTooltip(layerProps.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip(layer.getBounds().getCenter());
-                            } else {
-                                layer.bindTooltip(`📐 Alan: ${areaFormatted}`, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip(layer.getBounds().getCenter());
-                            }
+                        if (props.metadata) lineGroup.metadata = props.metadata;
 
-                            const polyPopupHtml = `
-                                <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
-                                    <div id="main-content-${currentId}">
-                                        <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri</div>
-                                        <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
-                                            <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Hesaplanmış Alan</td></tr>
-                                            <tr><td style="color: #6c757d;">Toplam Alan:</td><td style="font-weight: bold; color: #28a745; text-align: right;">${areaFormatted}</td></tr>
-                                        </table>
-                                        ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
-                                        <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Alanı Haritadan Sil</button>
-                                    </div>
-                                </div>
-                            `;
-                            layer.bindPopup(polyPopupHtml, { maxWidth: 250 });
+                        if (props.label) {
+                            line.bindTooltip(props.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
                         }
-                    } 
-                    
-                    // Line Popup
-                    if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-                        const latlngs = layer.getLatLngs();
-                        if (latlngs && latlngs.length >= 2) {
-                            let totalDist = 0;
-                            for(let i = 0; i < latlngs.length - 1; i++) {
-                                totalDist += latlngs[i].distanceTo(latlngs[i+1]);
-                            }
-                            let distanceKm = (totalDist / 1000).toFixed(2);
 
-                            if (layerProps.label) {
-                                layer.bindTooltip(layerProps.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
-                            } else {
-                                layer.bindTooltip(`${distanceKm} km`, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
-                            }
-
-                            const linePopupHtml = `
-                                <div id="popup-wrapper-${currentId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
-                                    <div id="main-content-${currentId}">
-                                        <div style="font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🗺️ Ölçüm Bilgileri</div>
-                                        <table style="width: 100%; font-size: 12px; margin-bottom: 10px;">
-                                            <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Çizgi Rotası</td></tr>
-                                            <tr><td style="color: #6c757d;">Toplam Çevre:</td><td style="font-weight: bold; color: #dc3545; text-align: right;">${distanceKm} km</td></tr>
-                                        </table>
-                                        ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(currentId) : ''}
-                                        <button id="${currentId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Ölçümü Sil</button>
-                                    </div>
+                        const linePopupHtml = `
+                            <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
+                                <div id="main-content-${uniqueId}">
+                                    <div style="font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🗺️ Çizgi Ölçümü</div>
+                                    ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(uniqueId) : ''}
+                                    <button id="del_${uniqueId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 5px;">🗑️ Çizgiyi Sil</button>
                                 </div>
-                            `;
-                            layer.bindPopup(linePopupHtml, { maxWidth: 250 });
-                        }
+                            </div>
+                        `;
+                        line.bindPopup(linePopupHtml, { maxWidth: 250 });
+
+                        line.on('popupopen', () => {
+                            setTimeout(() => {
+                                document.getElementById(`del_${uniqueId}`)?.addEventListener('click', () => {
+                                    map.removeLayer(lineGroup);
+                                    layerStorageGroup.removeLayer(lineGroup);
+                                });
+                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(lineGroup, uniqueId);
+                            }, 50);
+                        });
                     }
 
-                    layer.on('popupopen', () => {
-                        document.getElementById(currentId)?.addEventListener('click', () => { restoredLayer.removeLayer(layer); });
-                        if (window.FeatureMetadata) {
-                            window.FeatureMetadata.bindMetadataEvents(layer, currentId);
-                        }
-                    });
+                    // --- 3. BAĞIMSIZ NOKTA (POINT) IMPORT ---
+                    else if (geomType === "Point") {
+                        pointCount++;
+                        const latlng = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
+                        const marker = L.circleMarker(latlng, {
+                            radius: style.radius || 6,
+                            color: style.color || '#ffc107',
+                            weight: style.weight || 2,
+                            fillColor: style.fillColor || '#ffc107',
+                            fillOpacity: style.fillOpacity !== undefined ? style.fillOpacity : 1,
+                            interactive: true
+                        }).addTo(map);
+
+                        layerStorageGroup.addLayer(marker);
+                        if (props.metadata) marker.metadata = props.metadata;
+
+                        const pointPopupHtml = `
+                            <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
+                                <div id="main-content-${uniqueId}">
+                                    <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">📍 Nokta Bilgileri</div>
+                                    <table style="width: 100%; font-size: 11px; margin-bottom: 10px;">
+                                        <tr><td style="color: #6c757d;">Enlem:</td><td style="font-weight: bold; text-align: right;">${latlng[0].toFixed(5)}</td></tr>
+                                        <tr><td style="color: #6c757d;">Boylam:</td><td style="font-weight: bold; text-align: right;">${latlng[1].toFixed(5)}</td></tr>
+                                    </table>
+                                    ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(uniqueId) : ''}
+                                    <button id="del_${uniqueId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Noktayı Sil</button>
+                                </div>
+                            </div>
+                        `;
+                        marker.bindPopup(pointPopupHtml, { maxWidth: 250 });
+
+                        marker.on('popupopen', () => {
+                            setTimeout(() => {
+                                document.getElementById(`del_${uniqueId}`)?.addEventListener('click', () => {
+                                    map.removeLayer(marker);
+                                    layerStorageGroup.removeLayer(marker);
+                                });
+                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(marker, uniqueId);
+                            }, 50);
+                        });
+                    }
                 });
 
                 if (window.MapManager) {
-                    MapManager.mapLayersStorage[fileName] = restoredLayer;
+                    MapManager.mapLayersStorage[fileName] = layerStorageGroup;
                 }
                 
                 uploadedFileSet.add(fileName);
 
+                // Sağ panel kartını doğru sayılarla güncelle
                 if (window.Sidebar) {
                     Sidebar.appendLayerCard(
-                        fileName, pointCount, lineCount, polygonCount, toggleVisibilityFn, deleteLayerFn,
+                        fileName, pointCount, lineCount, polygonCount, 
+                        
+                        // 1. GÖZ İŞARETİ (TOGGLE)
+                        (name) => {
+                            const target = MapManager.mapLayersStorage[name];
+                            if (!target) return false;
+                            
+                            // Haritada varsa kaldır, yoksa ekle
+                            if (map.hasLayer(target)) { 
+                                map.removeLayer(target); 
+                                return false; // Gizlendi
+                            } else { 
+                                map.addLayer(target); 
+                                return true;  // Görünür oldu
+                            }
+                        },
+
+                        // 2. SİLME MANTIĞI 
+                        (name) => {
+                            if (typeof deleteLayerFn === 'function') deleteLayerFn(name);
+
+                            const target = MapManager.mapLayersStorage[name];
+                            if (target && map.hasLayer(target)) map.removeLayer(target);
+                            delete MapManager.mapLayersStorage[name];
+
+                            // SessionManager'ın dosyayı bir daha yüklememesi için aktif dosyalar kümesinden uçur
+                            uploadedFileSet.delete(name);
+
+                            if (window.SessionManager) {
+                                const activeLayers = Array.from(uploadedFileSet);
+                                sessionStorage.setItem(window.SessionManager.layersKey, JSON.stringify(activeLayers));
+                                window.SessionManager.updateActivity();
+                            }
+                        },
+
+                        // 3. TIKLAYINCA ODAKLANMA MANTIĞI 
                         (name) => {
                             const target = MapManager.mapLayersStorage[name];
                             if (target) map.fitBounds(target.getBounds());
@@ -232,10 +266,11 @@ const ImportService = {
                     );
                 }
 
-                if (restoredLayer.getBounds().isValid()) {
-                    map.fitBounds(restoredLayer.getBounds());
+                if (layerStorageGroup.getBounds().isValid()) {
+                    map.fitBounds(layerStorageGroup.getBounds());
                 }
 
+                // DB Kaydı
                 if (window.ApiService && typeof window.ApiService.saveMeasurements === 'function') {
                     window.ApiService.saveMeasurements(geojsonContent)
                         .then(() => console.log(`[IMPORT DB] ${fileName} başarıyla veritabanına kaydedildi.`))

@@ -13,7 +13,7 @@ const SessionManager = {
 
     waitForMapAndRestore: function() {
         let attempts = 0;
-        const maxAttempts = 30; // 3 saniye boyunca haritayı ara
+        const maxAttempts = 30; 
         
         const checkInterval = setInterval(() => {
             attempts++;
@@ -62,7 +62,6 @@ const SessionManager = {
             }
         }
 
-        // 1. Resmi (Import) Katmanları Geri Yükle
         const savedLayers = sessionStorage.getItem(this.layersKey);
         if (savedLayers) {
             try {
@@ -77,26 +76,17 @@ const SessionManager = {
             }
         }
 
-        // 2. Kullanıcı Çizimlerini (Point, Line, Polygon, Buffer) Geri Yükle
         const savedDrawn = sessionStorage.getItem(this.drawnKey);
         if (savedDrawn) {
             try {
                 const drawnItems = JSON.parse(savedDrawn);
-                console.log("[SESSION] Yüklenecek çizimler bulundu:", drawnItems.length);
-                
                 drawnItems.forEach(item => {
                     if (!item || !item.toolType) return;
-
                     try {
-                        if (item.toolType === 'Point') {
-                            this.restorePoint(map, item);
-                        } else if (item.toolType === 'Polygon') {
-                            this.restorePolygon(map, item);
-                        } else if (item.toolType === 'Line') {
-                            this.restoreLine(map, item);
-                        } else if (item.toolType === 'Buffer') {
-                            this.restoreBuffer(map, item);
-                        }
+                        if (item.toolType === 'Point') this.restorePoint(map, item);
+                        else if (item.toolType === 'Polygon') this.restorePolygon(map, item);
+                        else if (item.toolType === 'Line') this.restoreLine(map, item);
+                        else if (item.toolType === 'Buffer') this.restoreBuffer(map, item);
                     } catch (objErr) {
                         console.error(`[SESSION RESTORE] ${item.toolType} FAILED:`, objErr);
                     }
@@ -106,7 +96,6 @@ const SessionManager = {
             }
         }
 
-        // 3. Harita Konumu (Center + Zoom) Geri Yükle
         const savedMapState = sessionStorage.getItem(this.mapStateKey);
         if (savedMapState) {
             try {
@@ -121,8 +110,6 @@ const SessionManager = {
 
         this.updateActivity();
     },
-
-    // --- RESTORE UYGULAMA MOTORLARI ---
 
     restorePoint: function(map, item) {
         if (!item.latlng) return;
@@ -153,9 +140,7 @@ const SessionManager = {
         const popupContent = `
             <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                 <div id="main-content-${uniqueId}">
-                    <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px; text-shadow: 0 0 1px #000;">
-                        📍 Nokta Bilgileri
-                    </div>
+                    <div style="font-weight: bold; color: #ffc107; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px; text-shadow: 0 0 1px #000;">📍 Nokta Bilgileri</div>
                     <table style="width: 100%; font-size: 11px; margin-bottom: 10px;">
                         <tr><td style="color: #6c757d;">Enlem:</td><td id="lat_${uniqueId}" style="font-weight: bold; text-align: right;">${latlng.lat.toFixed(5)}</td></tr>
                         <tr><td style="color: #6c757d;">Boylam:</td><td id="lng_${uniqueId}" style="font-weight: bold; text-align: right;">${latlng.lng.toFixed(5)}</td></tr>
@@ -254,14 +239,10 @@ const SessionManager = {
         if (window.IntersectionManager) window.IntersectionManager.addPolygon(finalPolygon);
 
         if (item.label) {
-            finalPolygon.bindTooltip(item.label, {
-                permanent: true, direction: 'center', className: 'measure-label', interactive: false
-            }).openTooltip();
+            finalPolygon.bindTooltip(item.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
         }
 
         const polygonMarkers = [];
-        // 🔥 HATA ÇÖZÜMÜ: Leaflet Polygon'da array of arrays döner [[lat,lng]]. 
-        // Döngüye sokmadan önce sadece içteki objeleri alıyoruz.
         const flatPoints = Array.isArray(item.latlngs[0]) ? item.latlngs[0] : item.latlngs;
 
         flatPoints.forEach(pt => {
@@ -276,12 +257,8 @@ const SessionManager = {
         polygonMarkers.forEach(m => polygonGroup.addLayer(m));
         polygonGroup.addTo(map);
 
-        if (window.PolygonDragEngine) {
-            PolygonDragEngine.attachDragBehavior(map, finalPolygon, polygonMarkers);
-        }
-        if (window.ExportService) {
-            ExportService.registerMeasurement(polygonGroup);
-        }
+        if (window.PolygonDragEngine) PolygonDragEngine.attachDragBehavior(map, finalPolygon, polygonMarkers);
+        if (window.ExportService) ExportService.registerMeasurement(polygonGroup);
 
         const uniqueId = item.uniqueId || ('poly_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
 
@@ -597,8 +574,6 @@ const SessionManager = {
                 });
                 if (isChild && !(layer instanceof L.GeoJSON)) return;
 
-                // 🔥 HTML string arama KÖTÜ UYGULAMASI SİLİNDİ.
-                // Objelerin özellikleri (stili, tipi, metadata'sı) doğrudan Leaflet nesnelerinden okunuyor.
                 let toolType = layer.toolType || 'Unknown';
                 let style = {};
                 let label = '';
@@ -623,7 +598,6 @@ const SessionManager = {
                     }
                 }
 
-                // Restore verisinden gelen eski bilgileri koru
                 if (layer._restoreData) {
                      metadata = layer._restoreData.metadata || metadata;
                      if (toolType === 'Unknown') {
@@ -723,8 +697,6 @@ const SessionManager = {
             clearTimeout(timeout);
             timeout = setTimeout(() => this.updateActivity(), 1000); 
         };
-        // 🔥 PERFORMANS İYİLEŞTİRMESİ: Saniyede onlarca kez gereksiz kayıt yapan "mousemove" ve "scroll" eventleri kaldırıldı.
-        // Artık sadece tıklama (click), tuşa basma (keydown) ve sürükleme sonu (mouseup) aksiyonlarında session kaydedilecek.
         window.addEventListener('click', resetTimer);
         window.addEventListener('keydown', resetTimer);
         window.addEventListener('mouseup', resetTimer); 
