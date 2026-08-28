@@ -223,7 +223,16 @@ const LayerController = {
                             objectGroup.on('popupopen', () => {
                                 // Silme butonu: objeye ait TÜM parçaları (nokta+gövde) birlikte kaldırır
                                 document.getElementById(currentId)?.addEventListener('click', () => {
-                                    restoredLayer.removeLayer(objectGroup);
+                                    // Silme işlemini de Undo/Redo geçmişine kaydediyoruz ki import edilen
+                                    // dosyalardaki objeler de kendi çizimlerimiz gibi geri alınabilsin
+                                    if (window.HistoryManager) {
+                                        window.HistoryManager.execute({
+                                            redo: () => restoredLayer.removeLayer(objectGroup),
+                                            undo: () => restoredLayer.addLayer(objectGroup)
+                                        });
+                                    } else {
+                                        restoredLayer.removeLayer(objectGroup);
+                                    }
                                 });
                                 if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(objectGroup, currentId);
                                 if (window.StyleSettings) window.StyleSettings.bindEvents(objectGroup, currentId, objectType);
@@ -233,12 +242,37 @@ const LayerController = {
                         MapManager.mapLayersStorage[grupAdi] = restoredLayer;
                         this.uploadedFileSet.add(grupAdi);
 
-                        Sidebar.appendLayerCard(
-                            grupAdi, pointCount, lineCount, polygonCount, 
-                            (name) => this.toggleLayerVisibility(name), 
-                            (name) => this.deleteLayerController(name), 
-                            (name) => this.focusLayerController(name)
-                        );
+                        const onToggleClick = (name) => this.toggleLayerVisibility(name);
+                        const onDeleteClick = (name) => this.deleteLayerController(name);
+                        const onFocusClick = (name) => this.focusLayerController(name);
+
+                        Sidebar.appendLayerCard(grupAdi, pointCount, lineCount, polygonCount, onToggleClick, onDeleteClick, onFocusClick);
+
+                        // Dosyanın TAMAMININ import edilmesini de Undo/Redo geçmişine kaydediyoruz.
+                        // isAutoLoad true ise (sayfa açılışında sessizce yeniden yükleniyorsa) geçmişe eklemiyoruz,
+                        // çünkü bu kullanıcının o an yaptığı bir işlem değil, sadece session'ın geri yüklenmesi.
+                        if (window.HistoryManager && !isAutoLoad) {
+                            window.HistoryManager.add({
+                                undo: () => {
+                                    this.map.removeLayer(restoredLayer);
+                                    delete MapManager.mapLayersStorage[grupAdi];
+                                    this.uploadedFileSet.delete(grupAdi);
+                                    if (window.Sidebar) {
+                                        window.Sidebar.state = window.Sidebar.state.filter(s => s.fileName !== grupAdi);
+                                        const searchText = document.getElementById('layerSearchInput')?.value.toLocaleLowerCase('tr-TR').trim() || '';
+                                        window.Sidebar.renderList(searchText);
+                                    }
+                                },
+                                redo: () => {
+                                    this.map.addLayer(restoredLayer);
+                                    MapManager.mapLayersStorage[grupAdi] = restoredLayer;
+                                    this.uploadedFileSet.add(grupAdi);
+                                    if (window.Sidebar) {
+                                        Sidebar.appendLayerCard(grupAdi, pointCount, lineCount, polygonCount, onToggleClick, onDeleteClick, onFocusClick);
+                                    }
+                                }
+                            });
+                        }
 
                         if (restoredLayer && Object.keys(restoredLayer._layers).length > 0 && !isAutoLoad) {
                             MapManager.flyToLayerBounds(restoredLayer);

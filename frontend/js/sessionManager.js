@@ -1,4 +1,3 @@
-// js/sessionManager.js
 const SessionManager = {
     timeoutMinutes: 15,
     activityKey: 'gis_last_activity',
@@ -134,7 +133,7 @@ const SessionManager = {
         if (item.metadata && window.FeatureMetadata) {
             pointGroup.feature = pointGroup.feature || {};
             pointGroup.feature.properties = pointGroup.feature.properties || {};
-            pointGroup.feature.properties.metadata = item.metadata;
+            pointGroup.feature.properties.userMetadata = item.metadata;
         }
 
         const popupContent = `
@@ -265,7 +264,7 @@ const SessionManager = {
         if (item.metadata && window.FeatureMetadata) {
             polygonGroup.feature = polygonGroup.feature || {};
             polygonGroup.feature.properties = polygonGroup.feature.properties || {};
-            polygonGroup.feature.properties.metadata = item.metadata;
+            polygonGroup.feature.properties.userMetadata = item.metadata;
         }
 
         const popupContent = `
@@ -368,7 +367,7 @@ const SessionManager = {
         if (item.metadata && window.FeatureMetadata) {
             measurementGroup.feature = measurementGroup.feature || {};
             measurementGroup.feature.properties = measurementGroup.feature.properties || {};
-            measurementGroup.feature.properties.metadata = item.metadata;
+            measurementGroup.feature.properties.userMetadata = item.metadata;
         }
 
         const popupContent = `
@@ -440,7 +439,7 @@ const SessionManager = {
         if (item.metadata && window.FeatureMetadata) {
             bufferLayer.feature = bufferLayer.feature || {};
             bufferLayer.feature.properties = bufferLayer.feature.properties || {};
-            bufferLayer.feature.properties.metadata = item.metadata;
+            bufferLayer.feature.properties.userMetadata = item.metadata;
         }
 
         bufferLayer.eachLayer((childLayer) => {
@@ -606,8 +605,10 @@ const SessionManager = {
                      }
                 }
 
-                if (layer.feature && layer.feature.properties && layer.feature.properties.metadata) {
-                    metadata = layer.feature.properties.metadata;
+                // Metadata'nın gerçek kaynağı FeatureMetadata sistemidir (userMetadata).
+                // Eski/import edilmiş objelerde düz "layer.metadata" kalmış olabilir diye ona da bakıyoruz (geriye dönük uyumluluk).
+                if (layer.feature && layer.feature.properties && layer.feature.properties.userMetadata) {
+                    metadata = layer.feature.properties.userMetadata;
                 } else if (layer.metadata) {
                     metadata = layer.metadata;
                 }

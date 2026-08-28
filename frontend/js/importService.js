@@ -47,6 +47,18 @@ const ImportService = {
 
         const reader = new FileReader();
 
+        // Metadata notlarını doğrudan görsel HTML'e çeviren yardımcı motor
+        const getImportedMetadataHtml = (meta) => {
+            if (!meta || Object.keys(meta).length === 0) return '';
+            let html = '<div style="background:#f8f9fa; border-left:3px solid #17a2b8; padding:8px; margin-bottom:10px; border-radius:4px; font-size:11.5px;">';
+            html += '<div style="font-weight:bold; color:#17a2b8; margin-bottom:4px;">Notlar / Metadata:</div>';
+            for (let k in meta) {
+                html += `<div style="margin-bottom:3px;"><span style="color:#6c757d;">${k}:</span> <strong style="color:#212529;">${meta[k]}</strong></div>`;
+            }
+            html += '</div>';
+            return html;
+        };
+
         reader.onload = function(event) {
             try {
                 const geojsonContent = JSON.parse(event.target.result);
@@ -62,10 +74,10 @@ const ImportService = {
                     const style = props.style || {};
                     const uniqueId = props.objectId || ('restored_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
 
-                    // --- 1. POLİGON IMPORT (KÖŞE NOKTALARI VE GÖVDE TEK GRUPTA) ---
+                    // --- 1. POLİGON IMPORT ---
                     if (geomType.includes("Polygon")) {
                         polygonCount++;
-                        const coords = feature.geometry.coordinates[0].map(c => [c[1], c[0]]); // [lat, lng]
+                        const coords = feature.geometry.coordinates[0].map(c => [c[1], c[0]]); 
                         
                         const poly = L.polygon(coords, {
                             color: style.color || '#28a745',
@@ -87,44 +99,69 @@ const ImportService = {
                         polyGroup.addTo(map);
                         layerStorageGroup.addLayer(polyGroup);
 
-                        if (props.metadata) polyGroup.metadata = props.metadata;
+                        if (props.metadata) {
+                            polyGroup.metadata = props.metadata;
+                            polyGroup.feature = polyGroup.feature || { type: 'Feature', properties: {} };
+                            polyGroup.feature.properties.metadata = props.metadata;
+                        }
 
-                        // Alan Tooltip
+                        let areaFormatted = "Hesaplanıyor...";
                         if (window.turf) {
                             const turfPoly = turf.polygon(feature.geometry.coordinates);
                             const areaM2 = turf.area(turfPoly);
-                            const areaFormatted = areaM2 >= 1000000 ? `${(areaM2 / 1000000).toFixed(2)} km²` : `${areaM2.toFixed(0)} m²`;
-                            poly.bindTooltip(props.label || `📐 Alan: ${areaFormatted}`, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
+                            areaFormatted = areaM2 >= 1000000 ? `${(areaM2 / 1000000).toFixed(2)} km²` : `${areaM2.toFixed(0)} m²`;
+                            polyGroup.bindTooltip(props.label || `📐 Alan: ${areaFormatted}`, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
                         }
 
-                        // Popup ve Tek Tıkla Toplu Silme
                         const polyPopupHtml = `
                             <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                                 <div id="main-content-${uniqueId}">
                                     <div style="font-weight: bold; color: #28a745; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🟩 Alan Bilgileri</div>
+                                    <table style="width: 100%; font-size: 11px; margin-bottom: 10px;">
+                                        <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Hesaplanmış Alan</td></tr>
+                                        <tr><td style="color: #6c757d;">Toplam Alan:</td><td style="font-weight: bold; color: #28a745; text-align: right;">${areaFormatted}</td></tr>
+                                    </table>
+                                    ${getImportedMetadataHtml(props.metadata)}
                                     ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(uniqueId) : ''}
                                     <button id="del_${uniqueId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 5px;">🗑️ Alanı Haritadan Sil</button>
                                 </div>
                             </div>
                         `;
-                        poly.bindPopup(polyPopupHtml, { maxWidth: 250 });
+                        
+                        polyGroup.bindPopup(polyPopupHtml, { maxWidth: 250 });
 
-                        poly.on('popupopen', () => {
+                        polyGroup.on('popupopen', () => {
                             setTimeout(() => {
                                 document.getElementById(`del_${uniqueId}`)?.addEventListener('click', () => {
-                                    map.removeLayer(polyGroup);
-                                    layerStorageGroup.removeLayer(polyGroup);
+                                    if (window.HistoryManager) {
+                                        window.HistoryManager.execute({
+                                            redo: () => { map.removeLayer(polyGroup); layerStorageGroup.removeLayer(polyGroup); },
+                                            undo: () => { map.addLayer(polyGroup); layerStorageGroup.addLayer(polyGroup); }
+                                        });
+                                    } else {
+                                        map.removeLayer(polyGroup);
+                                        layerStorageGroup.removeLayer(polyGroup);
+                                    }
                                 });
                                 if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(polyGroup, uniqueId);
                             }, 50);
                         });
                     }
 
-                    // 2. ÇİZGİ IMPORT (TÜM KENARLAR VE NOKTALAR BİRLİKTE SİLİNİR)
+                    // --- 2. ÇİZGİ IMPORT ---
                     else if (geomType.includes("LineString")) {
                         lineCount++;
                         const coords = feature.geometry.coordinates.map(c => [c[1], c[0]]);
                         
+                        let distanceKm = "0.00";
+                        if (coords.length >= 2) {
+                            let totalDist = 0;
+                            for (let i = 0; i < coords.length - 1; i++) {
+                                totalDist += L.latLng(coords[i]).distanceTo(L.latLng(coords[i+1]));
+                            }
+                            distanceKm = (totalDist / 1000).toFixed(2);
+                        }
+
                         const line = L.polyline(coords, {
                             color: style.color || '#007bff',
                             weight: style.weight !== undefined ? style.weight : 3,
@@ -143,35 +180,52 @@ const ImportService = {
                         lineGroup.addTo(map);
                         layerStorageGroup.addLayer(lineGroup);
 
-                        if (props.metadata) lineGroup.metadata = props.metadata;
+                        if (props.metadata) {
+                            lineGroup.metadata = props.metadata;
+                            lineGroup.feature = lineGroup.feature || { type: 'Feature', properties: {} };
+                            lineGroup.feature.properties.metadata = props.metadata;
+                        }
 
                         if (props.label) {
-                            line.bindTooltip(props.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
+                            lineGroup.bindTooltip(props.label, { permanent: true, direction: 'center', className: 'measure-label', interactive: false }).openTooltip();
                         }
 
                         const linePopupHtml = `
                             <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
                                 <div id="main-content-${uniqueId}">
                                     <div style="font-weight: bold; color: #007bff; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 8px;">🗺️ Çizgi Ölçümü</div>
+                                    <table style="width: 100%; font-size: 11px; margin-bottom: 10px;">
+                                        <tr><td style="color: #6c757d;">Tip:</td><td style="font-weight: bold; text-align: right;">Çizgi Rotası</td></tr>
+                                        <tr><td style="color: #6c757d;">Mesafe:</td><td style="font-weight: bold; color: #dc3545; text-align: right;">${distanceKm} km</td></tr>
+                                    </table>
+                                    ${getImportedMetadataHtml(props.metadata)}
                                     ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(uniqueId) : ''}
                                     <button id="del_${uniqueId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 5px;">🗑️ Çizgiyi Sil</button>
                                 </div>
                             </div>
                         `;
-                        line.bindPopup(linePopupHtml, { maxWidth: 250 });
+                        
+                        lineGroup.bindPopup(linePopupHtml, { maxWidth: 250 });
 
-                        line.on('popupopen', () => {
+                        lineGroup.on('popupopen', () => {
                             setTimeout(() => {
                                 document.getElementById(`del_${uniqueId}`)?.addEventListener('click', () => {
-                                    map.removeLayer(lineGroup);
-                                    layerStorageGroup.removeLayer(lineGroup);
+                                    if (window.HistoryManager) {
+                                        window.HistoryManager.execute({
+                                            redo: () => { map.removeLayer(lineGroup); layerStorageGroup.removeLayer(lineGroup); },
+                                            undo: () => { map.addLayer(lineGroup); layerStorageGroup.addLayer(lineGroup); }
+                                        });
+                                    } else {
+                                        map.removeLayer(lineGroup);
+                                        layerStorageGroup.removeLayer(lineGroup);
+                                    }
                                 });
                                 if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(lineGroup, uniqueId);
                             }, 50);
                         });
                     }
 
-                    // --- 3. BAĞIMSIZ NOKTA (POINT) IMPORT ---
+                    // --- 3. NOKTA (POINT) IMPORT ---
                     else if (geomType === "Point") {
                         pointCount++;
                         const latlng = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
@@ -182,10 +236,16 @@ const ImportService = {
                             fillColor: style.fillColor || '#ffc107',
                             fillOpacity: style.fillOpacity !== undefined ? style.fillOpacity : 1,
                             interactive: true
-                        }).addTo(map);
+                        });
 
-                        layerStorageGroup.addLayer(marker);
-                        if (props.metadata) marker.metadata = props.metadata;
+                        const pointGroup = L.featureGroup([marker]).addTo(map);
+                        layerStorageGroup.addLayer(pointGroup);
+
+                        if (props.metadata) {
+                            pointGroup.metadata = props.metadata;
+                            pointGroup.feature = pointGroup.feature || { type: 'Feature', properties: {} };
+                            pointGroup.feature.properties.metadata = props.metadata;
+                        }
 
                         const pointPopupHtml = `
                             <div id="popup-wrapper-${uniqueId}" style="font-family: 'Segoe UI', sans-serif; padding: 5px; min-width: 180px;">
@@ -195,20 +255,28 @@ const ImportService = {
                                         <tr><td style="color: #6c757d;">Enlem:</td><td style="font-weight: bold; text-align: right;">${latlng[0].toFixed(5)}</td></tr>
                                         <tr><td style="color: #6c757d;">Boylam:</td><td style="font-weight: bold; text-align: right;">${latlng[1].toFixed(5)}</td></tr>
                                     </table>
+                                    ${getImportedMetadataHtml(props.metadata)}
                                     ${window.FeatureMetadata ? window.FeatureMetadata.getMetadataHTML(uniqueId) : ''}
                                     <button id="del_${uniqueId}" style="width: 100%; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px;">🗑️ Noktayı Sil</button>
                                 </div>
                             </div>
                         `;
-                        marker.bindPopup(pointPopupHtml, { maxWidth: 250 });
+                        pointGroup.bindPopup(pointPopupHtml, { maxWidth: 250 });
 
-                        marker.on('popupopen', () => {
+                        pointGroup.on('popupopen', () => {
                             setTimeout(() => {
                                 document.getElementById(`del_${uniqueId}`)?.addEventListener('click', () => {
-                                    map.removeLayer(marker);
-                                    layerStorageGroup.removeLayer(marker);
+                                    if (window.HistoryManager) {
+                                        window.HistoryManager.execute({
+                                            redo: () => { map.removeLayer(pointGroup); layerStorageGroup.removeLayer(pointGroup); },
+                                            undo: () => { map.addLayer(pointGroup); layerStorageGroup.addLayer(pointGroup); }
+                                        });
+                                    } else {
+                                        map.removeLayer(pointGroup);
+                                        layerStorageGroup.removeLayer(pointGroup);
+                                    }
                                 });
-                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(marker, uniqueId);
+                                if (window.FeatureMetadata) window.FeatureMetadata.bindMetadataEvents(pointGroup, uniqueId);
                             }, 50);
                         });
                     }
@@ -220,57 +288,71 @@ const ImportService = {
                 
                 uploadedFileSet.add(fileName);
 
-                // Sağ panel kartını doğru sayılarla güncelle
+                const onToggleClick = (name) => {
+                    const target = MapManager.mapLayersStorage[name];
+                    if (!target) return false;
+
+                    if (map.hasLayer(target)) {
+                        map.removeLayer(target);
+                        return false; 
+                    } else {
+                        map.addLayer(target);
+                        return true;  
+                    }
+                };
+
+                const onDeleteClick = (name) => {
+                    if (typeof deleteLayerFn === 'function') deleteLayerFn(name);
+
+                    const target = MapManager.mapLayersStorage[name];
+                    if (target && map.hasLayer(target)) map.removeLayer(target);
+                    delete MapManager.mapLayersStorage[name];
+
+                    uploadedFileSet.delete(name);
+
+                    if (window.SessionManager) {
+                        const activeLayers = Array.from(uploadedFileSet);
+                        sessionStorage.setItem(window.SessionManager.layersKey, JSON.stringify(activeLayers));
+                        window.SessionManager.updateActivity();
+                    }
+                };
+
+                const onFocusClick = (name) => {
+                    const target = MapManager.mapLayersStorage[name];
+                    if (target) map.fitBounds(target.getBounds());
+                };
+
                 if (window.Sidebar) {
-                    Sidebar.appendLayerCard(
-                        fileName, pointCount, lineCount, polygonCount, 
-                        
-                        // 1. GÖZ İŞARETİ (TOGGLE)
-                        (name) => {
-                            const target = MapManager.mapLayersStorage[name];
-                            if (!target) return false;
-                            
-                            // Haritada varsa kaldır, yoksa ekle
-                            if (map.hasLayer(target)) { 
-                                map.removeLayer(target); 
-                                return false; // Gizlendi
-                            } else { 
-                                map.addLayer(target); 
-                                return true;  // Görünür oldu
+                    Sidebar.appendLayerCard(fileName, pointCount, lineCount, polygonCount, onToggleClick, onDeleteClick, onFocusClick);
+                }
+
+                if (window.HistoryManager) {
+                    window.HistoryManager.add({
+                        undo: () => {
+                            map.removeLayer(layerStorageGroup);
+                            delete MapManager.mapLayersStorage[fileName];
+                            uploadedFileSet.delete(fileName);
+                            if (window.Sidebar) {
+                                window.Sidebar.state = window.Sidebar.state.filter(s => s.fileName !== fileName);
+                                const searchText = document.getElementById('layerSearchInput')?.value.toLocaleLowerCase('tr-TR').trim() || '';
+                                window.Sidebar.renderList(searchText);
                             }
                         },
-
-                        // 2. SİLME MANTIĞI 
-                        (name) => {
-                            if (typeof deleteLayerFn === 'function') deleteLayerFn(name);
-
-                            const target = MapManager.mapLayersStorage[name];
-                            if (target && map.hasLayer(target)) map.removeLayer(target);
-                            delete MapManager.mapLayersStorage[name];
-
-                            // SessionManager'ın dosyayı bir daha yüklememesi için aktif dosyalar kümesinden uçur
-                            uploadedFileSet.delete(name);
-
-                            if (window.SessionManager) {
-                                const activeLayers = Array.from(uploadedFileSet);
-                                sessionStorage.setItem(window.SessionManager.layersKey, JSON.stringify(activeLayers));
-                                window.SessionManager.updateActivity();
+                        redo: () => {
+                            map.addLayer(layerStorageGroup);
+                            MapManager.mapLayersStorage[fileName] = layerStorageGroup;
+                            uploadedFileSet.add(fileName);
+                            if (window.Sidebar) {
+                                Sidebar.appendLayerCard(fileName, pointCount, lineCount, polygonCount, onToggleClick, onDeleteClick, onFocusClick);
                             }
-                        },
-
-                        // 3. TIKLAYINCA ODAKLANMA MANTIĞI 
-                        (name) => {
-                            const target = MapManager.mapLayersStorage[name];
-                            if (target) map.fitBounds(target.getBounds());
                         }
-                    );
+                    });
                 }
 
                 if (layerStorageGroup.getBounds().isValid()) {
                     map.fitBounds(layerStorageGroup.getBounds());
                 }
 
-                // DB Kaydı
                 if (window.ApiService && typeof window.ApiService.saveMeasurements === 'function') {
                     window.ApiService.saveMeasurements(geojsonContent)
                         .then(() => console.log(`[IMPORT DB] ${fileName} başarıyla veritabanına kaydedildi.`))
