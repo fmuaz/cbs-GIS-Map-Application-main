@@ -573,7 +573,7 @@ const SessionManager = {
             }
         }
 
-        // 🔥 YENİ: Matruşka bebekleri gibi iç içe geçmiş tüm grupları derinlemesine tarayan motor
+        // Matruşka bebekleri gibi iç içe geçmiş tüm grupları derinlemesine tarayan motor
         const checkDeep = (group, targetLayer) => {
             if (group === targetLayer) return true;
             if (typeof group.hasLayer === 'function' && group.hasLayer(targetLayer)) return true;

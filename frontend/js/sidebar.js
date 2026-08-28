@@ -35,7 +35,7 @@ const Sidebar = {
             });
         }
 
-        // 🔥 ÇÖZÜM BURADA: O mavi Import butonuna tıklandığında eski modalı ez ve klasörü aç!
+        // O mavi Import butonuna tıklandığında eski modalı ez ve klasörü aç!
         // HTML'de id'si "add-layer-btn" olan butonu yakalıyoruz
         const importBtn = document.getElementById('add-layer-btn');
         if (importBtn) {

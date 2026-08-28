@@ -81,7 +81,7 @@ const ImportService = {
                     const geomType = feature.geometry ? feature.geometry.type : '';
                     const props = feature.properties || {};
                     
-                    // 🔥 YENİ: İç objelerin de grup adını eşitliyoruz
+                    // İç objelerin de grup adını eşitliyoruz
                     props.grupAdi = fileName;
 
                     const style = props.style || {};
@@ -326,11 +326,16 @@ const ImportService = {
 
                     uploadedFileSet.delete(name);
 
-                    if (window.SessionManager) {
-                        const activeLayers = Array.from(uploadedFileSet);
-                        sessionStorage.setItem(window.SessionManager.layersKey, JSON.stringify(activeLayers));
-                        window.SessionManager.updateActivity();
-                    }
+                    // Dosya silindiği an F5 ile ilgili tüm oturum kalıntılarını yok et
+                    sessionStorage.removeItem(`imported_geojson_${name}`);
+                    
+                    let activeImports = JSON.parse(sessionStorage.getItem('active_imported_files') || '[]');
+                    activeImports = activeImports.filter(item => item !== name);
+                    sessionStorage.setItem('active_imported_files', JSON.stringify(activeImports));
+
+                    let visibilityMap = JSON.parse(sessionStorage.getItem('active_imports_visibility') || '{}');
+                    delete visibilityMap[name];
+                    sessionStorage.setItem('active_imports_visibility', JSON.stringify(visibilityMap));
                 };
 
                 const onFocusClick = (name) => {
