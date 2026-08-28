@@ -48,7 +48,6 @@ const ImportService = {
         const reader = new FileReader();
 
         const getImportedMetadataHtml = (meta) => {
-            if (!meta || Object.keys(meta).length === 0) return '';
             let html = '<div style="background:#f8f9fa; border-left:3px solid #17a2b8; padding:8px; margin-bottom:10px; border-radius:4px; font-size:11.5px;">';
             html += '<div style="font-weight:bold; color:#17a2b8; margin-bottom:4px;">Notlar / Metadata:</div>';
             for (let k in meta) {
@@ -62,6 +61,13 @@ const ImportService = {
             try {
                 const geojsonContent = JSON.parse(event.target.result);
                 let pointCount = 0, lineCount = 0, polygonCount = 0;
+
+                sessionStorage.setItem(`imported_geojson_${fileName}`, event.target.result);
+                let activeImports = JSON.parse(sessionStorage.getItem('active_imported_files') || '[]');
+                if (!activeImports.includes(fileName)) {
+                    activeImports.push(fileName);
+                    sessionStorage.setItem('active_imported_files', JSON.stringify(activeImports));
+                }
 
                 // 🔥 YENİ: Senkronizasyon - Dosya adı ile JSON kayıt adını eşitliyoruz
                 geojsonContent.properties = geojsonContent.properties || {};
@@ -101,6 +107,7 @@ const ImportService = {
                         });
 
                         const polyGroup = L.featureGroup();
+                        polyGroup.isImportedLayer = true;
                         polyGroup.addLayer(poly);
                         polyMarkers.forEach(m => polyGroup.addLayer(m));
                         polyGroup.addTo(map);
@@ -182,6 +189,7 @@ const ImportService = {
                         });
 
                         const lineGroup = L.featureGroup();
+                        lineGroup.isImportedLayer = true;
                         lineGroup.addLayer(line);
                         lineMarkers.forEach(m => lineGroup.addLayer(m));
                         lineGroup.addTo(map);
@@ -246,6 +254,7 @@ const ImportService = {
                         });
 
                         const pointGroup = L.featureGroup([marker]).addTo(map);
+                        pointGroup.isImportedLayer = true;
                         layerStorageGroup.addLayer(pointGroup);
 
                         if (props.metadata) {

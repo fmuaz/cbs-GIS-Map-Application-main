@@ -62,17 +62,25 @@ const SessionManager = {
         }
 
         const savedLayers = sessionStorage.getItem(this.layersKey);
-        if (savedLayers) {
+        if (savedLayers && window.ApiService && window.ImportService) {
             try {
-                const layersToLoad = JSON.parse(savedLayers);
-                layersToLoad.forEach(groupName => {
-                    if (window.LayerController && typeof LayerController.loadGroupController === 'function') {
-                        LayerController.loadGroupController(groupName, true);
+            const activeImports = JSON.parse(sessionStorage.getItem('active_imported_files') || '[]');
+            activeImports.forEach(fileName => {
+                const rawData = sessionStorage.getItem(`imported_geojson_${fileName}`);
+                if (rawData && window.ImportService) {
+                    const map = window.LayerController ? LayerController.map : (window.MapManager && window.MapManager.map ? window.MapManager.map : null);
+                    const uploadedFileSet = window.LayerController ? LayerController.uploadedFileSet : new Set();
+                    const fileObj = new File([rawData], fileName + ".json", { type: "application/json" });
+                    
+                    // Dosya zaten yüklendiyse tekrar tetiklenmesin
+                    if (!uploadedFileSet.has(fileName)) {
+                        ImportService.handleMeasurementImport(fileObj, fileName, map, uploadedFileSet, () => {}, () => {});
                     }
-                });
-            } catch (err) {
-                console.error("[SESSION] Resmi katmanlar yüklenirken hata:", err);
-            }
+                }
+            });
+        } catch (e) {
+            console.error("Import session restore error:", e);
+        }
         }
 
         const savedDrawn = sessionStorage.getItem(this.drawnKey);
@@ -534,8 +542,7 @@ const SessionManager = {
     updateActivity: function() {
         if (this.isRestoring) return;
         sessionStorage.setItem(this.activityKey, Date.now().toString());
-        this.saveDrawnFeatures();
-        this.saveMapViewState();
+        this.saveMapViewState(); // saveDrawnFeatures buradan tamamen çıkarıldı!
     },
 
     saveMapViewState: function() {
@@ -548,6 +555,10 @@ const SessionManager = {
 
     saveDrawnFeatures: function() {
         if (this.isRestoring) return;
+        if (window.MapManager && Object.keys(MapManager.mapLayersStorage).length > 0) {
+            sessionStorage.removeItem(this.drawnKey);
+            return;
+        }
         const map = window.LayerController ? LayerController.map : (window.MapManager && window.MapManager.map ? window.MapManager.map : null);
         if (!map) return;
         
@@ -578,22 +589,20 @@ const SessionManager = {
         map.eachLayer(layer => {
             if (layer instanceof L.FeatureGroup || layer instanceof L.LayerGroup || layer instanceof L.GeoJSON) {
                 
-                // 🔥 1. AKILLI KONTROL: Bu parça resmi import klasörünün en dibinde bile olsa bul ve atla!
-                let isOfficial = false;
-                for (let i = 0; i < officialGroups.length; i++) {
-                    if (checkDeep(officialGroups[i], layer)) {
-                        isOfficial = true;
-                        break;
-                    }
+            // Bu parça resmi import klasörünün en dibinde bile olsa bul ve atla
+            if (layer.isImportedLayer) return;
+
+            let isChild = false;
+            map.eachLayer(p => {
+                if (p !== layer && (p instanceof L.FeatureGroup || p instanceof L.LayerGroup) && typeof p.hasLayer === 'function' && p.hasLayer(layer)) {
+                    isChild = true;
+                    // Eğer bu objenin kapsayıcısında (ebeveyninde) damga varsa, bunu da atla
+                    if (p.isImportedLayer) layer.isImportedLayer = true; 
                 }
-                if (isOfficial) return; // İçe aktarılan bir dosyaysa ASLA oturum hafızasına alma
-                
-                // 🔥 2. KONTROL: Senin AreaTool ile çizdiğin manuel çizimlerin alt gövdeleri
-                let isChild = false;
-                map.eachLayer(p => {
-                    if (p !== layer && (p instanceof L.FeatureGroup || p instanceof L.LayerGroup) && typeof p.hasLayer === 'function' && p.hasLayer(layer)) isChild = true;
-                });
-                if (isChild && !(layer instanceof L.GeoJSON)) return;
+            });
+
+            if (layer.isImportedLayer) return;
+            if (isChild && !(layer instanceof L.GeoJSON)) return;
 
                 let toolType = layer.toolType || 'Unknown';
                 let style = {};
