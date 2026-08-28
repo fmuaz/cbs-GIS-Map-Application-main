@@ -47,7 +47,6 @@ const ImportService = {
 
         const reader = new FileReader();
 
-        // Metadata notlarını doğrudan görsel HTML'e çeviren yardımcı motor
         const getImportedMetadataHtml = (meta) => {
             if (!meta || Object.keys(meta).length === 0) return '';
             let html = '<div style="background:#f8f9fa; border-left:3px solid #17a2b8; padding:8px; margin-bottom:10px; border-radius:4px; font-size:11.5px;">';
@@ -64,6 +63,10 @@ const ImportService = {
                 const geojsonContent = JSON.parse(event.target.result);
                 let pointCount = 0, lineCount = 0, polygonCount = 0;
 
+                // 🔥 YENİ: Senkronizasyon - Dosya adı ile JSON kayıt adını eşitliyoruz
+                geojsonContent.properties = geojsonContent.properties || {};
+                geojsonContent.properties.grupAdi = fileName;
+
                 const layerStorageGroup = L.featureGroup().addTo(map);
 
                 const features = geojsonContent.features || (geojsonContent.type === "Feature" ? [geojsonContent] : []);
@@ -71,6 +74,10 @@ const ImportService = {
                 features.forEach(feature => {
                     const geomType = feature.geometry ? feature.geometry.type : '';
                     const props = feature.properties || {};
+                    
+                    // 🔥 YENİ: İç objelerin de grup adını eşitliyoruz
+                    props.grupAdi = fileName;
+
                     const style = props.style || {};
                     const uniqueId = props.objectId || ('restored_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
 

@@ -562,14 +562,36 @@ const SessionManager = {
             }
         }
 
+        // 🔥 YENİ: Matruşka bebekleri gibi iç içe geçmiş tüm grupları derinlemesine tarayan motor
+        const checkDeep = (group, targetLayer) => {
+            if (group === targetLayer) return true;
+            if (typeof group.hasLayer === 'function' && group.hasLayer(targetLayer)) return true;
+            let found = false;
+            if (typeof group.eachLayer === 'function') {
+                group.eachLayer(child => {
+                    if (checkDeep(child, targetLayer)) found = true;
+                });
+            }
+            return found;
+        };
+
         map.eachLayer(layer => {
             if (layer instanceof L.FeatureGroup || layer instanceof L.LayerGroup || layer instanceof L.GeoJSON) {
-                let isOfficial = officialGroups.includes(layer);
-                if (isOfficial) return;
                 
+                // 🔥 1. AKILLI KONTROL: Bu parça resmi import klasörünün en dibinde bile olsa bul ve atla!
+                let isOfficial = false;
+                for (let i = 0; i < officialGroups.length; i++) {
+                    if (checkDeep(officialGroups[i], layer)) {
+                        isOfficial = true;
+                        break;
+                    }
+                }
+                if (isOfficial) return; // İçe aktarılan bir dosyaysa ASLA oturum hafızasına alma
+                
+                // 🔥 2. KONTROL: Senin AreaTool ile çizdiğin manuel çizimlerin alt gövdeleri
                 let isChild = false;
                 map.eachLayer(p => {
-                    if (p !== layer && (p instanceof L.FeatureGroup || p instanceof L.LayerGroup) && p.hasLayer && p.hasLayer(layer)) isChild = true;
+                    if (p !== layer && (p instanceof L.FeatureGroup || p instanceof L.LayerGroup) && typeof p.hasLayer === 'function' && p.hasLayer(layer)) isChild = true;
                 });
                 if (isChild && !(layer instanceof L.GeoJSON)) return;
 
@@ -605,10 +627,8 @@ const SessionManager = {
                      }
                 }
 
-                // Metadata'nın gerçek kaynağı FeatureMetadata sistemidir (userMetadata).
-                // Eski/import edilmiş objelerde düz "layer.metadata" kalmış olabilir diye ona da bakıyoruz (geriye dönük uyumluluk).
-                if (layer.feature && layer.feature.properties && layer.feature.properties.userMetadata) {
-                    metadata = layer.feature.properties.userMetadata;
+                if (layer.feature && layer.feature.properties && layer.feature.properties.metadata) {
+                    metadata = layer.feature.properties.metadata;
                 } else if (layer.metadata) {
                     metadata = layer.metadata;
                 }
