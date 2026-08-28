@@ -38,7 +38,7 @@ const ImportService = {
             alert(window.APP_MESSAGES?.LAYER_ALREADY_LOADED ? window.APP_MESSAGES.LAYER_ALREADY_LOADED(fileName) : `Bu katman zaten yüklü: ${fileName}`);
             const targetLayer = window.MapManager && window.MapManager.mapLayersStorage ? window.MapManager.mapLayersStorage[fileName] : null;
             if (targetLayer && map.hasLayer(targetLayer)) {
-                map.fitBounds(targetLayer.getBounds());
+                map.fitBounds(layerStorageGroup.getBounds(), { maxZoom: 15 });
             }
             return;
         }
@@ -62,14 +62,14 @@ const ImportService = {
                 const geojsonContent = JSON.parse(event.target.result);
                 let pointCount = 0, lineCount = 0, polygonCount = 0;
 
+                // Eski dosyaların hafızada kalmasını önle, sadece o an yüklenen aktif dosya kalsın
                 sessionStorage.setItem(`imported_geojson_${fileName}`, event.target.result);
-                let activeImports = JSON.parse(sessionStorage.getItem('active_imported_files') || '[]');
-                if (!activeImports.includes(fileName)) {
-                    activeImports.push(fileName);
-                    sessionStorage.setItem('active_imported_files', JSON.stringify(activeImports));
-                }
 
-                // 🔥 YENİ: Senkronizasyon - Dosya adı ile JSON kayıt adını eşitliyoruz
+                // Eğer tek bir aktif dosya kalmasını istiyorsan listeyi sıfırlayıp sadece yenisini yazıyoruz:
+                let activeImports = [fileName];
+                sessionStorage.setItem('active_imported_files', JSON.stringify(activeImports));
+
+                // Senkronizasyon - Dosya adı ile JSON kayıt adını eşitliyoruz
                 geojsonContent.properties = geojsonContent.properties || {};
                 geojsonContent.properties.grupAdi = fileName;
 
